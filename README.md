@@ -1,26 +1,51 @@
-# Sounder Crew Report — Cloudflare migration
+# Sounder Crew Report migration
 
-**Status: Source files migrated; NOT ready for production or employee use.**
+Status: **staging deployed and API-tested; production cutover pending permanent credential setup and authenticated browser/mobile verification.**
 
-## Included
-- Original Hatchable employee reporting interface: `public/index.html`, `public/app.js`, `public/styles.css`
-- Original administrator interface, alerts, PDF export, and PWA assets: `public/admin*`
-- Cloudflare Worker: `src/index.js`
-- D1 schema: `migrations/0001_reports.sql`
-- Cloudflare Worker configuration: `wrangler.jsonc`
+- Staging: https://sounder-staging.personalpeptidetracker.workers.dev
+- Production target: https://sounderreport.com (unchanged during staging work)
+- Original Hatchable app: https://sounder-crew-report.hatchable.site (unchanged)
+- Work branch: `work/sounder-app-build`
 
-## Routes
-- `/` — employee reporting interface
-- `/admin` and `/admin.html` — administrator dashboard
-- `/api/admin/login`, `/api/admin/session`, `/api/admin/reports` — admin APIs
-- `/api/send-demo-report` — **intentionally disabled (HTTP 503)** pending employee authentication, rate limits, and an email provider.
+## Implemented
 
-## Cloudflare setup still required
-1. D1 database `sounder-reports` exists; the configured database ID is in `wrangler.jsonc`. Verify the `demo_trip_reports` table exists in that database (created manually via D1 Console). The migration now uses the same table name; do not re-run blindly against existing data.
-2. Set Worker **encrypted secrets** `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_SESSION_SECRET` (random 32+ byte secret). Never commit credentials to GitHub.
-3. Deploy to a temporary `workers.dev` address and test administrator login and D1 report queries. The employee screen currently saves to browser storage only.
-4. Decide on employee authentication, abuse protection, report validation, outbound email service, retention policy, and authorized access before enabling submissions.
-5. Test all flows on iPhone and desktop before connecting `sounderreport.com`. Existing Hatchable data is **not** copied to D1.
+Original employee and administrator layouts, North/South schedules, assignments, actual station times, passenger activity, bikes/ADA counts, duty and crew fields, delays, mechanical issues, consist, door override, and signoffs are preserved. Server-side schedule validation uses a snapshot of the same original timetable. This migration does not certify timetable accuracy or connect the app to company systems; the original demo notices are retained.
 
-## Important
-The original Hatchable application is unchanged. This repository is public: never commit employee records, passwords, API keys, or production secrets. The migrated frontend may still contain demo-only wording and should not be represented as an official operational reporting system.
+The Worker uses parameterized D1 queries and atomic batches. A train is marked complete only after a database receipt. Unsent reports remain on the device with a retry button and stable submission identifiers. Lost-response retries do not duplicate records. Daily closeout validates all assignment train receipts, persists a daily report, and marks its train reports submitted. Administrator retrieval supports pagination across the original 90-day view without deleting older database records.
+
+Crew authentication is a shared crew account, as selected by the owner. Administrator authentication is separate. Passwords are salted PBKDF2-SHA256 hashes with a Worker-secret pepper, 100,000 iterations, and a minimum 16-character setup password. The two passwords must differ. Login attempts are limited per role/IP. Random opaque session cookies are Secure, HttpOnly, SameSite=Strict and expire after eight hours. Only session hashes are stored; logout revokes them. Setup rotates both accounts and revokes all sessions. Mutations require the same Origin, JSON submissions are size-limited, and untrusted report text is HTML-escaped. CSP blocks inline scripts and external script execution.
+
+PDF libraries are pinned and vendored locally with their licenses. Individual and filtered PDF exports are implemented. Email/share uses the device share sheet when supported, otherwise a download that the user can attach to email.
+
+## Data separation and email
+
+Staging uses `sounder-reports-staging`, separate from existing production D1 `sounder-reports`. No private Hatchable employee records were read or migrated. Only synthetic reports were used in tests.
+
+Automatic email is **disabled and not implemented as an active delivery path**. Cloudflare Email Sending setup returned API error 2036 (Unauthorized). Each saved train gets a durable outbox row with state `disabled`; the UI states that email is not configured. Enabling delivery requires an authorized email provider/domain, an approved sender and recipient, retry delivery implementation, and a successful test. Do not toggle EMAIL_ENABLED and assume email works.
+
+## Configuration and deployment
+
+`wrangler.jsonc` defaults to staging. Production must be selected explicitly and is not attached to the domain yet. The encrypted Worker secret `AUTH_PEPPER` is required; never store its value in this repository. Production needs a separate pepper and independent account provisioning. The schema migrations are additive and contain no private records or credentials.
+
+The connected Cloudflare API deployed `dist/worker.mjs`, produced by `npm run bundle`. That deterministic bundle embeds static text assets so API deployments need only one Worker module; the source backend and frontend are the same as the standard assets-binding deployment. Build output is ignored by Git. Keep deployments and code commits in sync.
+
+Initial credentials and setup tokens are generated outside the repository by `scripts/prepare-test-credentials.mjs`. That script is for migration/testing and must never run as an application endpoint. Setup tokens are random, stored hashed in D1, expire, and can be used once. Issue a new token through the authorized Cloudflare connector if a reset is needed; invalidate old unused tokens. No public registration is available.
+
+## Validation
+
+Run `npm ci && npm test`. Tests use synthetic fixtures, local workerd/D1 and JSDOM:
+
+- 27 backend authentication, authorization, validation, CSRF, idempotency, persistence, rate-limit, logout and setup checks.
+- 16 frontend submission, failed-report retry, daily closeout, stored HTML injection, and individual/combined PDF checks.
+- `tests/live-api.py` separately exercised 20 checks against deployed staging, including both logins, D1 persistence, role isolation, duplicate retry, daily closeout, retrieval and logout. It requires private credentials outside the repository and writes only synthetic evidence outside the repository.
+- PDF output was rendered and inspected; PDF libraries were upgraded to patched versions after an audit identified vulnerabilities in the initial versions.
+
+These automated checks do not replace the remaining authenticated desktop/mobile browser checks. Do not mark production complete until the real domain and `/admin` have been exercised after cutover.
+
+## Remaining release gate
+
+1. Owner chooses permanent shared crew and administrator credentials through the one-time private setup page. Never request passwords in chat.
+2. Verify authenticated employee and administrator browser workflows, desktop/mobile layouts, download/share exports and failure/retry behavior against staging.
+3. Provision production D1 security tables and independent credentials/pepper. Do not import private employee data without approval.
+4. Deploy the exact verified version, attach `sounderreport.com`, then repeat production smoke tests including `/admin`. Remove only the synthetic verification records and test sessions.
+5. Email remains an explicit limitation until authorized/configured and tested. No additional publication approval is needed beyond the user's existing instruction once release gates pass.

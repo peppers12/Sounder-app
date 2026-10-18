@@ -1,5 +1,5 @@
 (()=>{
-function safe(v){return v==null||v===""?"—":String(v)}
+function safe(v){return (v==null||v===""?"-":String(v)).replace(/→/g," to ").replace(/[–—]/g,"-")}
 function getJsPdf(){
   const ctor=window.jspdf?.jsPDF;
   if(!ctor) throw new Error("PDF library is still loading. Try again in a moment.");
@@ -47,6 +47,7 @@ function addReport(doc,r,startY=30){
     y=doc.lastAutoTable.finalY+6;
   }
   const notes=[];
+  for(const [key,label] of [['reliefConductor','Relief Conductor'],['reliefEngineer','Relief Engineer'],['studentConductor','Student Conductor'],['studentEngineer','Student Engineer']])if(crew[key])notes.push([label,safe(crew[key])]);
   if(r.customer_service_issues)notes.push(["Customer Service / Announcements",r.customer_service_issues]);
   (r.mechanical_issues||[]).forEach(m=>notes.push(["Mechanical "+safe(m.carEngine),safe(m.description)]));
   notes.push(["Crew Signoff",[sign.engineer,sign.conductor,sign.reliefEngineer,sign.reliefConductor].filter(Boolean).join(" / ")||"—"]);

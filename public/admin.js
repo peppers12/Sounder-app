@@ -3,7 +3,7 @@ const $$=s=>[...document.querySelectorAll(s)];
 let reports=[];
 let activeTab="today";
 const SESSION_STORAGE_KEY="sounderAdminDemoSession";
-function sessionToken(){return localStorage.getItem(SESSION_STORAGE_KEY)||""}
+function sessionToken(){return window.SounderDemoAuth?.getDemoSession()||""}
 function showLogin(){document.querySelector("#loginScreen").classList.remove("hidden");document.querySelector("#adminApp").classList.add("hidden")}
 function showAdmin(){document.querySelector("#loginScreen").classList.add("hidden");document.querySelector("#adminApp").classList.remove("hidden")}
 
@@ -43,7 +43,7 @@ function filtered(base){
 function refreshAssignments(){
   const current=$("#assignmentFilter").value;
   const vals=[...new Set(reports.map(r=>r.assignment))].sort();
-  $("#assignmentFilter").innerHTML='<option value="">All Assignments</option>'+vals.map(v=>'<option>'+v+'</option>').join("");
+  $("#assignmentFilter").innerHTML='<option value="">All Assignments</option>'+vals.map(v=>'<option>'+escapeHtml(v)+'</option>').join("");
   if(vals.includes(current))$("#assignmentFilter").value=current;
 }
 function renderStats(){
@@ -58,7 +58,8 @@ function renderStats(){
     ["Assignments Active",assignments,"North & South combined"]
   ].map(x=>'<div class="stat"><span>'+x[0]+'</span><strong>'+x[1]+'</strong><small>'+x[2]+'</small></div>').join("");
 }
-function card(r,isHistory=false){
+function card(raw,isHistory=false){
+  const r=displayReport(raw);
   const d=maxDelay(r), late=d>=6;
   return '<div class="report-card" data-id="'+r.id+'">'+
     '<div><span class="status-badge"><span class="dot '+(isHistory?"old":late?"delay":"")+'"></span>'+(isHistory?"Archived":late?"Delayed":"Saved")+'</span></div>'+
@@ -99,13 +100,14 @@ function renderReports(){
   ].map(x=>'<div class="summary-card"><span>'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join("");
   const top=[...list].sort((a,b)=>b.passengers-a.passengers).slice(0,10);
   const max=Math.max(...top.map(r=>Number(r.passengers)||0),1);
-  $("#bars").innerHTML=top.length?top.map(r=>'<div class="bar-row"><strong>'+r.train+'</strong><div class="bar-track"><div class="bar" style="width:'+((Number(r.passengers)||0)/max*100)+'%"></div></div><span>'+Number(r.passengers||0)+'</span></div>').join(""):'<div class="empty">No report data available.</div>';
+  $("#bars").innerHTML=top.length?top.map(r=>'<div class="bar-row"><strong>'+escapeHtml(r.train)+'</strong><div class="bar-track"><div class="bar" style="width:'+((Number(r.passengers)||0)/max*100)+'%"></div></div><span>'+Number(r.passengers||0)+'</span></div>').join(""):'<div class="empty">No report data available.</div>';
 }
 function render(){
   renderStats();renderToday();renderHistory();renderReports();
 }
 function openDetail(id){
-  const r=reports.find(x=>String(x.id)===String(id));if(!r)return;
+  const raw=reports.find(x=>String(x.id)===String(id));if(!raw)return;
+  const r=displayReport(raw);
   window.dispatchEvent(new CustomEvent("sounder-report-reviewed",{detail:{id:String(id)}}));
   const d=maxDelay(r);
   const crew=r.crew_info||{}, sign=r.crew_signoff||{};
@@ -122,6 +124,7 @@ function openDetail(id){
       '<div class="detail-cell"><span>Report Date</span><strong>'+fmtDate(r.report_date)+'</strong></div>'+
       '<div class="detail-cell"><span>Conductor</span><strong>'+(crew.conductor||"—")+'</strong></div>'+
       '<div class="detail-cell"><span>Engineer</span><strong>'+(crew.engineer||"—")+'</strong></div>'+
+      ['reliefConductor','reliefEngineer','studentConductor','studentEngineer'].filter(k=>crew[k]).map(k=>'<div class="detail-cell"><span>'+k.replace(/([A-Z])/g,' $1')+'</span><strong>'+crew[k]+'</strong></div>').join('')+
       '<div class="detail-cell"><span>On / Off Duty</span><strong>'+(crew.onDuty||"—")+' / '+(crew.offDuty||"—")+'</strong></div>'+
       '<div class="detail-cell"><span>Consist</span><strong>'+(r.consist_info||"—")+'</strong></div>'+
       '<div class="detail-cell"><span>Passengers</span><strong>'+r.passengers+'</strong></div>'+
@@ -142,9 +145,15 @@ function openDetail(id){
 async function load(){
   $("#refreshBtn").textContent="Loading…";
   try{
-    const res=await fetch((window.__HATCHABLE__?.api||"/api")+"/admin/reports?limit=500");
-    const data=await res.json();
-    reports=Array.isArray(data.reports)?data.reports:[];
+    if(!await window.sounderAdminReady)return;
+    const loaded=[];let cursor=null;
+    do {
+      const res=await fetch('/api/admin/reports?limit=500'+(cursor?'&before='+encodeURIComponent(cursor):''));
+      if(res.status===401){showLogin();throw Error('Session expired')}
+      if(!res.ok)throw Error('Unable to retrieve reports');
+      const data=await res.json();loaded.push(...data.reports);cursor=data.nextCursor;
+    }while(cursor);
+    reports=loaded.sort((a,b)=>String(b.saved_at).localeCompare(String(a.saved_at)));
     refreshAssignments();render();
   }catch(e){
     $("#reportList").innerHTML='<div class="empty">Unable to load demo reports.</div>';
@@ -160,3 +169,5 @@ $("#refreshBtn").addEventListener("click",load);
 $("#drawerClose").addEventListener("click",()=>$("#drawer").classList.add("hidden"));
 $("#drawer").addEventListener("click",e=>{if(e.target.id==="drawer")$("#drawer").classList.add("hidden")});
 load();
+function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function displayReport(v){if(typeof v==='string')return escapeHtml(v);if(Array.isArray(v))return v.map(displayReport);if(v&&typeof v==='object')return Object.fromEntries(Object.entries(v).map(([k,x])=>[k,displayReport(x)]));return v}
