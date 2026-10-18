@@ -1,1 +1,163 @@
-<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sounder migration setup</title><body style="font:16px system-ui;max-width:650px;margin:4rem auto;padding:1rem"><h1>Sounder Crew Report</h1><p>Migration setup only. Employee reporting is not enabled yet.</p><p>The original Hatchable application is unchanged.</p></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <meta name="theme-color" content="#0b3b70" />
+  <title>Sounder Crew Report Demo</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div>
+          <div class="eyebrow">SOUNDER</div>
+          <h1>Crew Report</h1>
+        </div>
+        <button class="icon-btn" id="helpBtn" aria-label="Help">?</button>
+      </div>
+      <div class="demo-banner">DEMO ONLY — NOT CONNECTED TO COMPANY SYSTEMS</div>
+    </header>
+
+    <main>
+      <section class="card setup-card">
+        <div class="section-label">1. Select Line</div>
+        <div class="segmented" id="linePicker">
+          <button data-line="north" class="active">Sounder North</button>
+          <button data-line="south">Sounder South</button>
+        </div>
+
+        <div class="field-grid">
+          <label>
+            <span>Assignment</span>
+            <select id="assignmentSelect"></select>
+          </label>
+          <label>
+            <span>Train Run</span>
+            <select id="trainSelect"></select>
+          </label>
+        </div>
+
+        <div class="route-summary" id="routeSummary"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-label">2. Crew & Train Information</div>
+        <div class="form-grid crew-time-grid">
+          <label class="date-field"><span>Date</span><input id="reportDate" type="date"></label>
+          <label class="duty-field"><span>On Duty</span><input id="onDuty" type="time"></label>
+          <label class="duty-field"><span>Off Duty</span><input id="offDuty" type="time"></label>
+          <label><span>Conductor</span><input id="conductor" autocomplete="name"></label>
+          <label><span>Engineer</span><input id="engineer" autocomplete="name"></label>
+          <label><span>Relief Conductor</span><input id="reliefConductor"></label>
+          <label><span>Relief Engineer</span><input id="reliefEngineer"></label>
+          <label><span>Student Conductor</span><input id="studentConductor"></label>
+          <label><span>Student Engineer</span><input id="studentEngineer"></label>
+          <label class="full"><span>Engine / Consist Information</span><input id="consistInfo" placeholder="Engine/car identifiers (optional)"></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <div>
+            <div class="section-label">3. Station Times</div>
+            <h2 id="trainHeading">Train</h2>
+          </div>
+          <button class="ghost-btn" id="resetTimes">Reset</button>
+        </div>
+        <div class="station-list" id="stationList"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-label">4. Trip Totals</div>
+        <div class="counter-grid">
+          <div class="counter-card">
+            <div class="counter-icon">🚲</div>
+            <div class="counter-label">Bikes</div>
+            <div class="counter-control">
+              <button data-counter="bikes" data-delta="-1">−</button>
+              <input id="bikes" inputmode="numeric" value="0" />
+              <button data-counter="bikes" data-delta="1">+</button>
+            </div>
+          </div>
+          <div class="counter-card">
+            <div class="counter-icon">♿</div>
+            <div class="counter-label">ADA</div>
+            <div class="counter-control">
+              <button data-counter="ada" data-delta="-1">−</button>
+              <input id="ada" inputmode="numeric" value="0" />
+              <button data-counter="ada" data-delta="1">+</button>
+            </div>
+          </div>
+          <div class="counter-card wide">
+            <div class="counter-icon">👥</div>
+            <div class="counter-label">Total Passengers</div>
+            <div class="counter-control">
+              <button data-counter="passengers" data-delta="-1">−</button>
+              <input id="passengers" inputmode="numeric" value="0" />
+              <button data-counter="passengers" data-delta="1">+</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-label">5. Passenger Activity by Station</div>
+        <p class="muted">Enter passengers boarding and exiting at each station. This is saved with the train report.</p>
+        <div id="passengerActivity" class="passenger-activity"></div>
+      </section>
+
+      <section class="card delay-card" id="delayCard">
+        <div class="section-label">6. Delay Review</div>
+        <p class="muted">A delay reason appears only when an actual time is 6 minutes or more later than scheduled. Delays of 5:59 or less are not recordable.</p>
+        <div id="delayList" class="delay-list"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-label">7. Issues & Safety Log</div>
+        <div class="stack-fields">
+          <label><span>Customer Service Issues / Announcements</span><textarea id="customerServiceIssues" rows="3" placeholder="Optional"></textarea></label>
+          <div class="mechanical-head"><strong>Mechanical Issues</strong><button type="button" class="ghost-btn" id="addMechanical">+ Add Issue</button></div>
+          <div id="mechanicalIssues" class="mechanical-list"></div>
+          <label class="check-row"><input id="doorOverrideCompleted" type="checkbox"><span>Door Override System Test Completed</span></label>
+          <label><span>Door Override Initials</span><input id="doorOverrideInitials" maxlength="12"></label>
+          <div class="form-grid signoff-grid">
+            <label><span>Engineer Signoff / Initials</span><input id="engineerSignoff"></label>
+            <label><span>Conductor Signoff / Initials</span><input id="conductorSignoff"></label>
+            <label><span>Relief Engineer</span><input id="reliefEngineerSignoff"></label>
+            <label><span>Relief Conductor</span><input id="reliefConductorSignoff"></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="card progress-card">
+        <div class="section-label">8. Assignment Progress</div>
+        <div class="progress-row">
+          <div>
+            <strong id="progressTitle">Assignment</strong>
+            <div class="muted" id="progressText">0 of 2 trains completed</div>
+          </div>
+          <div class="progress-pill" id="progressPill">0%</div>
+        </div>
+        <div class="progress-track"><div id="progressBar"></div></div>
+        <div id="completedTrips" class="completed-trips"></div>
+
+        <button class="primary-btn" id="saveTrainBtn">Save Train</button>
+        <button class="submit-btn" id="submitBtn" disabled>Submit Daily Report</button>
+        <p class="fineprint">Demo behavior only. “Save Train” stores this session in your browser. “Submit Daily Report” shows a mock confirmation and does not transmit data.</p>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="modal">
+    <div class="modal-card">
+      <button class="modal-close" id="modalClose">×</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>
