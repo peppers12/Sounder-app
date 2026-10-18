@@ -1,1 +1,24 @@
-{"name":"Sounder Crew Report","short_name":"Sounder","start_url":"/","display":"standalone","background_color":"#f8fafc","theme_color":"#0b3b70","description":"Independent crew reporting application. Not connected to company systems."}
+{
+  "name": "Sounder Crew",
+  "short_name": "Sounder Crew",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0b3b70",
+  "description": "Independent crew reporting application. Not connected to company systems.",
+  "id": "/crew-app",
+  "icons": [
+    {
+      "src": "/icons/crew-v1-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/crew-v1-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
