@@ -3,4 +3,11 @@
   "main": "src/index.js",
   "compatibility_date": "2026-10-18",
   "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
-  "d1_databases": [{"binding":"DB","database_name":"sounder-reports","database_id":"3cd176b8-1f9e-4b51-be05-cc04d329b809"
+    "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sounder-reports",
+      "database_id": "3cd176b8-1f9e-4b51-be05-cc04d329b809"
+    }
+  ]
+}
