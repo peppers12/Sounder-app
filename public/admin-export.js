@@ -39,33 +39,41 @@ function createPdf(){
   doc.setFont("ReportSans","normal");return doc;
 }
 function addReport(doc,r){
-  const crew=r.crew_info||{},sign=r.crew_signoff||{},firstPage=doc.getCurrentPageInfo().pageNumber;
-  let y=215;
-  function room(height){if(y+height>718){doc.addPage();y=215}}
-  function section(number,title){room(64);text(doc,number,42,y,8,true,PDF_COLORS.navy);text(doc,title.toUpperCase(),63,y,9,true,PDF_COLORS.navy);line(doc,y+7);y+=23}
+  // Measure the complete train report first. Draw it once on this page,
+  // fitting the body into the available area without dropping any fields.
+  const crew=r.crew_info||{},sign=r.crew_signoff||{},ops=[];
+  let y=8;
+  function wrap(value,size,width,bold=false){
+    doc.setFont('ReportSans',bold?'bold':'normal');doc.setFontSize(size);
+    return doc.splitTextToSize(safe(value),width);
+  }
+  function label(value,x,baseline,size=8,bold=false,color=PDF_COLORS.ink){ops.push({kind:'text',value,x,y:baseline,size,bold,color})}
+  function rule(baseline){ops.push({kind:'line',x:0,y:baseline,width:528})}
+  function section(number,title){label(number,0,y,8,true,PDF_COLORS.navy);label(title.toUpperCase(),21,y,8.5,true,PDF_COLORS.navy);rule(y+6);y+=21}
   function fields(items,width){
-    // Let wrapping crew names grow vertically rather than overlap the next row.
-    doc.setFont("ReportSans","normal");doc.setFontSize(9.5);
-    const chunks=items.map(([label,value])=>({label,value:doc.splitTextToSize(safe(value),width-15)}));
-    const height=Math.max(...chunks.map(v=>v.value.length))*12+24;room(height);
-    chunks.forEach((v,i)=>{text(doc,v.label.toUpperCase(),42+i*width,y,6.7,true,PDF_COLORS.muted);text(doc,v.value,42+i*width,y+14,9.5)});
-    y+=height;
+    const values=items.map(([name,value])=>({name,lines:wrap(value,9,width-12)}));
+    values.forEach((v,i)=>{label(v.name.toUpperCase(),i*width,y,6.5,true,PDF_COLORS.muted);label(v.lines,i*width,y+13,9)});
+    y+=Math.max(...values.map(v=>v.lines.length))*10.5+19;
   }
   function table(head,body,widths){
-    doc.autoTable({startY:y,head:head?[head]:undefined,body,theme:'plain',margin:{left:42,right:42,top:215,bottom:74},
-      styles:{font:'ReportSans',fontSize:8,textColor:PDF_COLORS.ink,cellPadding:{top:5,right:9,bottom:5,left:9},overflow:'linebreak',minCellHeight:20},
-      headStyles:{fillColor:PDF_COLORS.navy,textColor:[255,255,255],fontStyle:'bold',minCellHeight:23},
-      alternateRowStyles:{fillColor:PDF_COLORS.pale},
-      columnStyles:Object.fromEntries(widths.map((w,i)=>[i,{cellWidth:w,...(head&&i>0&&head[i]!=='Reason'?{halign:'center'}:{})}])),
-      rowPageBreak:'avoid'});
-    y=doc.lastAutoTable.finalY+13;
+    const rows=head?[head,...body]:body;
+    rows.forEach((row,index)=>{
+      const isHead=!!head&&index===0,fontSize=7.8;
+      const values=row.map((v,i)=>wrap(v,fontSize,widths[i]-12,isHead));
+      const height=Math.max(17,Math.max(...values.map(v=>v.length))*fontSize*1.15+7);
+      const bg=isHead?PDF_COLORS.navy:((index-(head?1:0))%2===0?PDF_COLORS.pale:null);
+      if(bg)ops.push({kind:'rect',x:0,y:y-10,width:528,height,color:bg});
+      let x=0;
+      values.forEach((lines,i)=>{label(lines,x+6,y,fontSize,isHead,isHead?[255,255,255]:PDF_COLORS.ink);x+=widths[i]});
+      y+=height;
+    });
+    y+=10;
   }
   section('01','Crew & duty information');
-  doc.setFontSize(9.5);
   fields([['Conductor',crew.conductor],['Engineer',crew.engineer],['Direction',r.direction]],176);
   fields([['On duty',crew.onDuty],['Off duty',crew.offDuty],['Report date',safe(r.report_date).slice(0,10)]],176);
   const additionalCrew=[['reliefConductor','Relief conductor'],['reliefEngineer','Relief engineer'],['studentConductor','Student conductor'],['studentEngineer','Student engineer']].filter(([key])=>crew[key]);
-  if(additionalCrew.length)table(null,additionalCrew.map(([key,label])=>[label,safe(crew[key])]),[132,396]);
+  if(additionalCrew.length)table(null,additionalCrew.map(([key,name])=>[name,safe(crew[key])]),[132,396]);
   section('02','Operating summary');
   fields([['Passengers',Number(r.passengers||0)],['Bicycles',Number(r.bikes||0)],['ADA passengers',Number(r.ada||0)],['Maximum delay',maxDelay(r)>0?'+'+maxDelay(r)+' min':'None']],132);
   section('03','Station times & passenger activity');
@@ -76,22 +84,31 @@ function addReport(doc,r){
     return [safe(s.station),safe(s.scheduled),safe(s.actual),delay==null?'-':(delay>0?'+':'')+delay+' min',p?Number(p.on||0):'-',p?Number(p.off||0):'-'];
   });
   if(station.length)table(['Station','Scheduled','Actual','Delay','On','Off'],station,[168,79,79,70,66,66]);
-  // Preserve activity even for stations without a timing entry.
   const unmatched=activity.filter((p,i)=>!used.has(i));
   if(unmatched.length)table(['Station','On','Off'],unmatched.map(p=>[safe(p.station),Number(p.on||0),Number(p.off||0)]),[264,132,132]);
   section('04','Recordable delays (6+ minutes)');
   if((r.delays||[]).length)table(['Station','Minutes','Reason'],r.delays.map(d=>[safe(d.station),'+'+Number(d.minutes||0),safe(d.reason)]),[132,65,331]);
-  else {text(doc,'None reported.',42,y,9);y+=25;}
+  else {label('None reported.',0,y,8);y+=22;}
   section('05','Equipment & service notes');
   const notes=[['Consist',safe(r.consist_info)],['Door override',r.door_override_completed?'Completed / '+safe(r.door_override_initials):'Not marked'],['Customer service',safe(r.customer_service_issues)]];
   const mechanical=r.mechanical_issues||[];
   if(mechanical.length)mechanical.forEach(m=>notes.push(['Mechanical / '+safe(m.carEngine),safe(m.description)]));else notes.push(['Mechanical','None reported.']);
   const signoffs=[['Conductor',sign.conductor],['Engineer',sign.engineer],['Relief conductor',sign.reliefConductor],['Relief engineer',sign.reliefEngineer]].filter(([,value])=>value);
-  notes.push(['Crew signoff',signoffs.length?signoffs.map(([label,value])=>label+': '+safe(value)).join(' / '):'Not marked']);
+  notes.push(['Crew signoff',signoffs.length?signoffs.map(([name,value])=>name+': '+safe(value)).join(' / '):'Not marked']);
   table(null,notes,[132,396]);
-  const lastPage=doc.getCurrentPageInfo().pageNumber;
-  for(let page=firstPage;page<=lastPage;page++){doc.setPage(page);addHeader(doc,r)}
-  doc.setPage(lastPage);
+  const scale=Math.min(1,508/y),left=42+(528-528*scale)/2,top=210;
+  for(const op of ops){
+    const x=left+op.x*scale,baseline=top+op.y*scale;
+    if(op.kind==='text'){
+      doc.setFont('ReportSans',op.bold?'bold':'normal');doc.setFontSize(op.size*scale);doc.setTextColor(...op.color);
+      doc.text(op.value,x,baseline,{lineHeightFactor:1.15});
+    }else if(op.kind==='rect'){
+      doc.setFillColor(...op.color);doc.rect(x,baseline,op.width*scale,op.height*scale,'F');
+    }else{
+      doc.setDrawColor(...PDF_COLORS.line);doc.setLineWidth(.6);doc.line(x,baseline,x+op.width*scale,baseline);
+    }
+  }
+  addHeader(doc,r);
 }
 function selectedReports(){
   let list=filtered(reports);
