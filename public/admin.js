@@ -62,7 +62,7 @@ function card(raw,isHistory=false){
   const r=displayReport(raw);
   const d=maxDelay(r), late=d>=6;
   return '<div class="report-card" data-id="'+r.id+'">'+
-    '<div><span class="status-badge"><span class="dot '+(isHistory?"old":late?"delay":"")+'"></span>'+(isHistory?"Archived":late?"Delayed":"Saved")+'</span></div>'+
+    '<div><span class="status-badge"><span class="dot '+(isHistory?"old":late?"delay":"")+'"></span>'+(isHistory?"Archived":late?"Delayed":r.status==="submitted"?"Submitted":"Saved")+'</span></div>'+
     '<div class="train-main"><strong>Train '+r.train+'</strong><span>'+r.line_label+' · Assignment '+r.assignment+'</span></div>'+
     '<div class="metric"><span>Passengers</span><strong>'+Number(r.passengers||0).toLocaleString()+'</strong></div>'+
     '<div class="metric hide-mobile"><span>Bikes / ADA</span><strong>'+Number(r.bikes||0)+' / '+Number(r.ada||0)+'</strong></div>'+
@@ -75,12 +75,12 @@ function wireCards(){
 }
 function renderToday(){
   let list=filtered(reports.filter(r=>normalizeDate(r.report_date)===todayKey()));
-  $("#reportList").innerHTML=list.length?list.map(r=>card(r,false)).join(""):'<div class="empty">No demo train reports saved today yet. Save a train in the Crew View and refresh this page.</div>';
+  $("#reportList").innerHTML=list.length?list.map(r=>card(r,false)).join(""):'<div class="empty">No train reports saved today yet. Save a train in the Crew View and refresh this page.</div>';
   wireCards();
 }
 function renderHistory(){
   let list=filtered(reports.filter(r=>normalizeDate(r.report_date)!==todayKey()));
-  $("#historyList").innerHTML=list.length?list.map(r=>card(r,true)).join(""):'<div class="empty">No previous-day demo reports match these filters.</div>';
+  $("#historyList").innerHTML=list.length?list.map(r=>card(r,true)).join(""):'<div class="empty">No previous-day reports match these filters.</div>';
   wireCards();
 }
 function renderReports(){
@@ -139,7 +139,7 @@ function openDetail(id){
     (paxRows?'<h3>Passenger Activity</h3><table class="station-table"><thead><tr><th>Station</th><th>On</th><th>Off</th></tr></thead><tbody>'+paxRows+'</tbody></table>':"")+
     (delayRows?'<h3>Recordable Delays (6+ min)</h3><table class="station-table"><thead><tr><th>Station</th><th>Minutes</th><th>Reason</th></tr></thead><tbody>'+delayRows+'</tbody></table>':"")+
     (r.customer_service_issues?'<h3>Customer Service Issues</h3><p>'+r.customer_service_issues+'</p>':"")+
-    '<p style="font-size:11px;color:#798b9d;margin-top:18px">Demo record saved '+fmtTimeStamp(r.saved_at)+'. Records shown here are limited to the rolling 90-day window.</p>';
+    '<p style="font-size:11px;color:#798b9d;margin-top:18px">Record received '+fmtTimeStamp(r.saved_at)+'. Records shown here are limited to the rolling 90-day window.</p>';
   $("#drawer").classList.remove("hidden");
 }
 async function load(){
@@ -156,7 +156,7 @@ async function load(){
     reports=loaded.sort((a,b)=>String(b.saved_at).localeCompare(String(a.saved_at)));
     refreshAssignments();render();
   }catch(e){
-    $("#reportList").innerHTML='<div class="empty">Unable to load demo reports.</div>';
+    $("#reportList").innerHTML='<div class="empty">Unable to load reports.</div>';
   }finally{$("#refreshBtn").textContent="Refresh"}
 }
 $$(".tab").forEach(btn=>btn.addEventListener("click",()=>{
