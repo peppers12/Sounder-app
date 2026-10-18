@@ -1,24 +1,26 @@
-# Sounder Crew Report — Cloudflare migration starter
+# Sounder Crew Report — Cloudflare migration
 
-**Not production ready.** This is a secure-by-default infrastructure starter, not a copy of the finished Hatchable application. The employee interface, administrator interface, full API parity, data migration, email provider, employee authentication, and testing remain to be completed.
+**Status: Source files migrated; NOT ready for production or employee use.**
 
-## Contents
-- Cloudflare Worker + static asset configuration
-- Cloudflare D1 database schema matching existing Hatchable report fields
-- Admin login using environment secrets and short-lived signed sessions
-- Admin report listing API
-- Employee report submissions intentionally disabled until proper authentication and anti-abuse protection are added
+## Included
+- Original Hatchable employee reporting interface: `public/index.html`, `public/app.js`, `public/styles.css`
+- Original administrator interface, alerts, PDF export, and PWA assets: `public/admin*`
+- Cloudflare Worker: `src/index.js`
+- D1 schema: `migrations/0001_reports.sql`
+- Cloudflare Worker configuration: `wrangler.jsonc`
 
-## Setup
-1. Upload these files to the **existing** `peppers12/Sounder-app` repository. Do not commit credentials or employee reports.
-2. In Cloudflare, create a D1 database named `sounder-reports` and replace `REPLACE_WITH_D1_DATABASE_ID` in `wrangler.jsonc` with its ID.
-3. Apply schema: `npx wrangler d1 migrations apply sounder-reports --remote` (after authenticating Wrangler to the appropriate Cloudflare account).
-4. Set Worker secrets `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET` (long random string). Do **not** put them in GitHub or in this archive. For example, use Cloudflare's Workers settings Secrets UI.
-5. Configure the Cloudflare Workers Git integration to build/deploy this repository using `npx wrangler deploy`. Set up the GitHub repo's source files before deployment.
-6. Test on the Workers preview URL before connecting `sounderreport.com`.
+## Routes
+- `/` — employee reporting interface
+- `/admin` and `/admin.html` — administrator dashboard
+- `/api/admin/login`, `/api/admin/session`, `/api/admin/reports` — admin APIs
+- `/api/send-demo-report` — **intentionally disabled (HTTP 503)** pending employee authentication, rate limits, and an email provider.
 
-## Compatibility caveats
-- The existing Hatchable client uses `x-demo-session` and expects `/api/admin/login`, `/api/admin/session`, `/api/admin/reports`, and `/api/send-demo-report`; the admin session response should be checked against the original frontend during porting.
-- Original Hatchable APIs use PostgreSQL and Hatchable email; D1 uses SQLite and no built-in email sender.
-- Do not import real employee information without authorization and an appropriate data-retention/security plan.
-- This starter does not expose the demo admin credentials or the report email address.
+## Cloudflare setup still required
+1. D1 database `sounder-reports` exists; the configured database ID is in `wrangler.jsonc`. Verify the `demo_trip_reports` table exists in that database (created manually via D1 Console). The migration now uses the same table name; do not re-run blindly against existing data.
+2. Set Worker **encrypted secrets** `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_SESSION_SECRET` (random 32+ byte secret). Never commit credentials to GitHub.
+3. Deploy to a temporary `workers.dev` address and test administrator login and D1 report queries. The employee screen currently saves to browser storage only.
+4. Decide on employee authentication, abuse protection, report validation, outbound email service, retention policy, and authorized access before enabling submissions.
+5. Test all flows on iPhone and desktop before connecting `sounderreport.com`. Existing Hatchable data is **not** copied to D1.
+
+## Important
+The original Hatchable application is unchanged. This repository is public: never commit employee records, passwords, API keys, or production secrets. The migrated frontend may still contain demo-only wording and should not be represented as an official operational reporting system.
