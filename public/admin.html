@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b3b70">
+  <title>Sounder Admin Dashboard Demo</title>
+  <link rel="manifest" href="/admin-manifest.json">
+  <link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="login-mark">S</div>
+    <div class="eyebrow dark">SOUNDER CREW REPORT</div>
+    <h1>Administrator Login</h1>
+    <p class="login-copy">Sign in to view live crew reports, 90-day history, and reporting data.</p>
+    <form id="loginForm">
+      <label><span>Username</span><input id="username" autocomplete="username" autocapitalize="none" required></label>
+      <label><span>Password</span><input id="password" type="password" autocomplete="current-password" required></label>
+      <button id="loginBtn" type="submit">Sign In</button>
+      <div id="loginError" class="login-error hidden">Incorrect username or password.</div>
+    </form>
+    <div class="login-note">DEMO ONLY — administrator access</div>
+  </div>
+</div>
+
+<div id="adminApp" class="hidden">
+<header class="top">
+  <div>
+    <div class="eyebrow">SOUNDER CREW REPORT</div>
+    <h1>Admin Dashboard <span id="newReportBadge" class="header-badge hidden">0</span></h1>
+  </div>
+  <div class="top-actions">
+    <button class="alerts-btn" id="enableAlertsBtn">Enable Alerts</button>
+    <a class="crew-link" href="/">Crew View</a>
+    <button class="logout-btn" id="logoutBtn">Logout</button>
+  </div>
+</header>
+<div class="demo">DEMO ONLY — FICTIONAL ADMINISTRATOR VIEW</div>
+
+<main>
+  <div id="adminToast" class="admin-toast hidden"></div>
+  <section class="stats" id="stats"></section>
+  <section class="panel">
+    <div class="tabs">
+      <button class="tab active" data-tab="today">Today</button>
+      <button class="tab" data-tab="history">History</button>
+      <button class="tab" data-tab="reports">Reports</button>
+    </div>
+
+    <div class="filters">
+      <select id="lineFilter">
+        <option value="">All Lines</option>
+        <option>Sounder North</option>
+        <option>Sounder South</option>
+      </select>
+      <select id="assignmentFilter"><option value="">All Assignments</option></select>
+      <input id="dateFilter" type="date">
+      <button id="refreshBtn">Refresh</button>
+      <button id="exportFilteredPdf" class="export-btn" type="button">Export PDF</button>
+      <button id="shareFilteredPdf" class="export-btn secondary" type="button">Email / Share PDF</button>
+    </div>
+
+    <div id="todayView" class="view">
+      <div class="section-title">
+        <div><div class="eyebrow dark">LIVE OPERATIONS</div><h2>Current Train Reports</h2></div>
+        <span class="live-pill">● Live</span>
+      </div>
+      <div id="reportList" class="report-list"></div>
+    </div>
+
+    <div id="historyView" class="view hidden">
+      <div class="section-title"><div><div class="eyebrow dark">90-DAY ARCHIVE</div><h2>Previous Reports</h2></div></div>
+      <div id="historyList" class="report-list"></div>
+    </div>
+
+    <div id="reportsView" class="view hidden">
+      <div class="section-title"><div><div class="eyebrow dark">SUMMARY</div><h2>Ridership & Delay Snapshot</h2></div></div>
+      <div class="summary-grid" id="summaryGrid"></div>
+      <div class="chart-card"><h3>Passenger Volume by Train</h3><div id="bars"></div></div>
+    </div>
+  </section>
+</main>
+
+<div class="drawer hidden" id="drawer">
+  <div class="drawer-card">
+    <button id="drawerClose" class="close">×</button>
+    <div id="drawerBody"></div>
+  </div>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js" defer></script>
+<script src="/admin-auth.js" defer></script>
+<script src="/admin.js" defer></script>
+<script src="/admin-alerts.js" defer></script>
+<script src="/admin-export.js" defer></script>
+</body>
+</html>
