@@ -12,7 +12,7 @@ const ok=(condition,message)=>{assert.ok(condition,message);checks++};
 const origin='https://sounder.test';
 async function call(path,{method='GET',body,cookie,headers={}}={}){return mf.dispatchFetch(origin+path,{method,redirect:'manual',headers:{...(method==='POST'?{origin,'content-type':'application/json'}:{}),...(cookie?{cookie}:{}),...headers},...(body===undefined?{}:{body:JSON.stringify(body)})})}
 try{
- for(const f of ['0001_reports.sql','0002_security.sql'])for(const sql of (await readFile('migrations/'+f,'utf8')).split(';').filter(x=>x.trim()))await db.prepare(sql).run();
+ for(const f of ['0001_reports.sql','0002_security.sql','0003_admin_edits.sql'])for(const sql of (await readFile('migrations/'+f,'utf8')).split(';').filter(x=>x.trim()))await db.prepare(sql).run();
  for(const role of ['admin','employee']){const salt=randomBytes(32).toString('hex');await db.prepare('INSERT INTO sounder_accounts(role,username,salt,password_hash) VALUES(?,?,?,?)').bind(role,role,salt,await passwordHash('test-'+role+'-password-123456',salt,pepper)).run()}
  ok((await call('/')).status===302,'Employee page locked');
  ok((await call('/api/admin/reports')).status===401,'Admin reports locked');
@@ -33,6 +33,22 @@ try{
  ok((await call('/api/send-demo-report',{method:'POST',body:b,cookie:sessions.admin})).status===401,'Administrator cookie does not submit as employee');
  ok((await call('/api/send-demo-report',{method:'POST',body:b,cookie:sessions.employee,headers:{origin:'https://evil.test'}})).status===403,'Cross-origin submission rejected');
  const list=await (await call('/api/admin/reports',{cookie:sessions.admin})).json();ok(list.reports.length===1&&list.reports[0].passengers===45,'Administrator retrieves persisted report');ok(list.reports[0].crew_info.engineer==='Synthetic Engineer','Extended report fields preserved');
+ const original=list.reports[0];
+ await db.prepare('INSERT INTO sounder_daily_reports(id,line_label,assignment,report_date,report_ids,passengers) VALUES(?,?,?,?,?,?)').bind('edit-test','Sounder North','6501','2026-10-18',JSON.stringify([receipt.id]),45).run();
+ const editBody={revision:0,reason:'Correct synthetic passenger count',report:{...b,passengers:60}};
+ const editPath='/api/admin/reports/'+encodeURIComponent(receipt.id);
+ ok((await call(editPath,{method:'PATCH',body:editBody,headers:{origin,'content-type':'application/json'}})).status===401,'Anonymous cannot edit');
+ const patch=(body=editBody,cookie=sessions.admin)=>call(editPath,{method:'PATCH',body,cookie,headers:{origin,'content-type':'application/json'}});
+ ok((await patch(editBody,sessions.employee)).status===401,'Crew cannot edit history');
+ ok((await patch({...editBody,report:{...b,passengers:-1}})).status===400,'Invalid correction rejected');
+ ok((await patch({...editBody,report:{...b,crewInfo:{...b.crewInfo,reportDate:'2026-10-17'}}})).status===400,'Report identity preserved');
+ const edited=await patch();ok(edited.status===200,'Administrator correction saved');const editedRow=(await edited.json()).report;
+ ok(editedRow.passengers===60&&editedRow.revision===1&&editedRow.status===original.status,'Correction versioned without changing status');
+ ok((await db.prepare('SELECT passengers FROM sounder_daily_reports WHERE id=?').bind('edit-test').first()).passengers===60,'Daily total updated atomically');
+ const audit=await db.prepare('SELECT * FROM sounder_report_edits WHERE report_id=?').bind(receipt.id).first();ok(JSON.parse(audit.before_json).passengers===45&&JSON.parse(audit.after_json).passengers===60&&audit.reason===editBody.reason,'Audit preserves before and after values');
+ ok((await patch()).status===409,'Stale correction rejected');
+ ok((await db.prepare('SELECT COUNT(*) AS n FROM sounder_report_edits').first()).n===1,'Stale correction creates no audit entry');
+ ok((await submit()).status===200,'Original crew receipt remains retry-safe after edit');
  for(let i=0;i<10;i++)await call('/api/admin/login',{method:'POST',body:{username:'admin',password:'wrong'}});
  ok((await call('/api/admin/login',{method:'POST',body:{username:'admin',password:'wrong'}})).status===429,'Login throttled');
  const logout=await call('/api/employee/logout',{method:'POST',cookie:sessions.employee});ok(logout.status===200,'Employee logout');ok((await call('/api/employee/session',{cookie:sessions.employee})).status===200,'Session check responds');ok(!(await (await call('/api/employee/session',{cookie:sessions.employee})).json()).ok,'Logged-out session revoked on server');

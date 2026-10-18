@@ -116,6 +116,30 @@ async function handle(req,env){
   const more=r.results.length>limit,rows=r.results.slice(0,limit);
   return json({reports:rows.map(mapReport),nextCursor:more?rows.at(-1).id:null});
  }
+ const editPath=path.match(/^\/api\/admin\/reports\/([^/]+)$/);
+ if(editPath&&req.method==='PATCH'){
+  if(!await session(req,env,'admin'))return json({error:'Administrator login required'},401);
+  if(!await rate(env,'admin-edit:'+await digest(tokenFor(req,'admin')),60,3600))return json({error:'Edit rate limit reached'},429);
+  const id=decodeURIComponent(editPath[1]),b=await readBody(req);
+  if(!Number.isInteger(b.revision)||b.revision<0)throw new ClientError('Report version required');
+  const reason=text(b.reason,500).trim();if(!reason)throw new ClientError('Enter a reason for the correction');
+  const previous=await env.DB.prepare('SELECT * FROM demo_trip_reports WHERE id=?').bind(id).first();
+  if(!previous)return json({error:'Report not found'},404);
+  if(previous.revision!==b.revision)return json({error:'This report changed. Close the editor and refresh before editing again.'},409);
+  const r=validateReport(object(b.report));
+  if(r.lineLabel!==previous.line_label||r.assignment!==previous.assignment||r.train!==previous.train||r.direction!==previous.direction||r.crewInfo.reportDate!==previous.report_date)throw new ClientError('Keep the original line, assignment, train and report date');
+  const administrator=await env.DB.prepare("SELECT username FROM sounder_accounts WHERE role='admin'").first();
+  const editId=crypto.randomUUID(),editedAt=new Date().toISOString();
+  const values=[JSON.stringify(r.actuals),r.bikes,r.ada,r.passengers,JSON.stringify(r.crewInfo),JSON.stringify(r.passengerActivity),JSON.stringify(r.delays),r.customerServiceIssues,JSON.stringify(r.mechanicalIssues),r.consistInfo,Number(r.doorOverrideCompleted),r.doorOverrideInitials,JSON.stringify(r.crewSignoff),editedAt,id,b.revision];
+  const result=await env.DB.batch([
+   env.DB.prepare('INSERT INTO sounder_report_edits(id,report_id,revision,administrator,reason,before_json,after_json,edited_at) SELECT ?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM demo_trip_reports WHERE id=? AND revision=?)').bind(editId,id,b.revision+1,administrator.username,reason,JSON.stringify(previous),JSON.stringify(r),editedAt,id,b.revision),
+   env.DB.prepare('UPDATE demo_trip_reports SET actuals=?,bikes=?,ada=?,passengers=?,crew_info=?,passenger_activity=?,delays=?,customer_service_issues=?,mechanical_issues=?,consist_info=?,door_override_completed=?,door_override_initials=?,crew_signoff=?,updated_at=?,revision=revision+1 WHERE id=? AND revision=?').bind(...values),
+   env.DB.prepare('UPDATE sounder_daily_reports SET passengers=(SELECT COALESCE(SUM(t.passengers),0) FROM json_each(sounder_daily_reports.report_ids) j JOIN demo_trip_reports t ON t.id=j.value) WHERE EXISTS(SELECT 1 FROM json_each(sounder_daily_reports.report_ids) WHERE value=?) AND EXISTS(SELECT 1 FROM sounder_report_edits WHERE id=?)').bind(id,editId)
+  ]);
+  if(result[1].meta.changes!==1)return json({error:'This report changed. Close the editor and refresh before editing again.'},409);
+  const saved=await env.DB.prepare('SELECT * FROM demo_trip_reports WHERE id=?').bind(id).first();
+  return json({ok:true,report:mapReport(saved)});
+ }
  if(path==='/api/employee/daily-report'&&req.method==='POST'){
   if(!await session(req,env,'employee'))return json({error:'Employee login required'},401);
   if(env.SUBMISSIONS_ENABLED!=='true')return json({error:'Submissions disabled'},503);

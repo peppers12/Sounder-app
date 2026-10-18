@@ -96,6 +96,7 @@ function addDrawerActions(id){
   });
   body.prepend(wrap);
 }
+window.addEventListener("sounder-report-reviewed",e=>setTimeout(()=>addDrawerActions(e.detail.id),0));
 document.addEventListener("click",e=>{
   const card=e.target.closest?.(".report-card");
   if(card?.dataset?.id)setTimeout(()=>addDrawerActions(card.dataset.id),50);

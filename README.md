@@ -20,11 +20,11 @@ Production uses Worker `sounder-app` and D1 `sounder-reports`; staging uses Work
 
 `wrangler.jsonc` defaults to staging; select the production environment explicitly for the main domain. Never commit secret values. `npm run bundle` creates `dist/worker.mjs`, embedding local frontend assets for deployment through the connected Cloudflare API. Build output is ignored by Git.
 
-Production deployment ID: `a804641567c649ddbb2ab6910116b015`. The temporary responsive verification harness was removed before the release. The original Hatchable application was neither modified nor deleted, and private employee records were not migrated.
+Initial production deployment ID: `a804641567c649ddbb2ab6910116b015`. The temporary responsive verification harness was removed before the release. The original Hatchable application was neither modified nor deleted, and private employee records were not migrated.
 
 ## Verification
 
-- 27 automated backend/security/persistence checks and 16 frontend/XSS/PDF checks passed with `npm test`.
+- 38 automated backend/security/persistence checks and 22 frontend/XSS/PDF checks passed with `npm test`.
 - 20 live staging API checks previously passed, including role isolation, persistence, duplicate-safe retries and logout.
 - Live production crew and administrator sign-ins passed at sounderreport.com.
 - Both assignment train submissions received database receipts; daily closeout persisted and cleared the form.
@@ -42,3 +42,7 @@ Automatic email delivery is disabled. Cloudflare Email Sending setup returned Un
 Mobile verification used responsive Chromium frames, not physical iOS/Android devices. A download-event check inside the temporary srcdoc test iframe timed out; the normal top-level production PDF download passed. Native device share sheets, installed-PWA behavior and operating-system notifications were not verified.
 
 The Cloudflare hosting account retains its existing internal account name; the Sounder application and public URLs use Sounder naming. No unrelated projects or account-wide settings were renamed.
+
+## Administrator corrections
+
+Open a report from History or Today and choose Edit Report. Administrators can correct crew/duty fields, station times and delay reasons, passenger/bike/ADA counts, station passenger activity, issues/consist, door override and signoffs. A correction reason is required. Line, assignment, train and report date stay fixed to preserve daily report membership. Each correction saves its administrator, timestamp, reason and before/after values in sounder_report_edits. Concurrent stale saves are rejected. Daily passenger totals update in the same database transaction; original submission receipts remain retry-safe. Apply migrations/0003_admin_edits.sql once before deploying this version. Crew View has been removed from the administrator header.
