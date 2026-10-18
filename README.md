@@ -2,7 +2,7 @@
 
 Status: **staging deployed and API-tested; production cutover pending permanent credential setup and authenticated browser/mobile verification.**
 
-- Staging: https://sounder-staging.personalpeptidetracker.workers.dev
+- Staging: https://staging.sounderreport.com
 - Production target: https://sounderreport.com (unchanged during staging work)
 - Original Hatchable app: https://sounder-crew-report.hatchable.site (unchanged)
 - Work branch: `work/sounder-app-build`
