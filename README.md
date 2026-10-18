@@ -1,8 +1,9 @@
 # Sounder Crew Report migration
 
-Status: **staging deployed and API-tested; production cutover pending permanent credential setup and authenticated browser/mobile verification.**
+Status: **staging deployed and API-tested; staging administrator retrieval and individual/combined browser PDF exports verified; production candidate deployed, cutover pending production login setup and final verification.**
 
 - Staging: https://staging.sounderreport.com
+- Production candidate: https://preview.sounderreport.com (separate production database; accounts not provisioned yet)
 - Production target: https://sounderreport.com (unchanged during staging work)
 - Original Hatchable app: https://sounder-crew-report.hatchable.site (unchanged)
 - Work branch: `work/sounder-app-build`
@@ -25,7 +26,7 @@ Automatic email is **disabled and not implemented as an active delivery path**. 
 
 ## Configuration and deployment
 
-`wrangler.jsonc` defaults to staging. Production must be selected explicitly and is not attached to the domain yet. The encrypted Worker secret `AUTH_PEPPER` is required; never store its value in this repository. Production needs a separate pepper and independent account provisioning. The schema migrations are additive and contain no private records or credentials.
+`wrangler.jsonc` defaults to staging. Production must be selected explicitly and is not attached to the domain yet. The encrypted Worker secret `AUTH_PEPPER` is required; never store its value in this repository. The production candidate has its own encrypted pepper and awaits independent account provisioning. The schema migrations are additive and contain no private records or credentials.
 
 The connected Cloudflare API deployed `dist/worker.mjs`, produced by `npm run bundle`. That deterministic bundle embeds static text assets so API deployments need only one Worker module; the source backend and frontend are the same as the standard assets-binding deployment. Build output is ignored by Git. Keep deployments and code commits in sync.
 
@@ -44,8 +45,8 @@ These automated checks do not replace the remaining authenticated desktop/mobile
 
 ## Remaining release gate
 
-1. Owner chooses permanent shared crew and administrator credentials through the one-time private setup page. Never request passwords in chat.
-2. Verify authenticated employee and administrator browser workflows, desktop/mobile layouts, download/share exports and failure/retry behavior against staging.
-3. Provision production D1 security tables and independent credentials/pepper. Do not import private employee data without approval.
+1. Owner has configured permanent staging accounts. Configure the separate production accounts through the one-time private setup page; never request passwords in chat.
+2. Staging employee submission/daily closeout and administrator retrieval, individual/combined PDF downloads passed in the live browser. Complete remaining responsive/mobile verification and production authenticated checks.
+3. Production D1 tables and independent pepper are provisioned; production contains no employee reports. No private employee data was imported.
 4. Deploy the exact verified version, attach `sounderreport.com`, then repeat production smoke tests including `/admin`. Remove only the synthetic verification records and test sessions.
 5. Email remains an explicit limitation until authorized/configured and tested. No additional publication approval is needed beyond the user's existing instruction once release gates pass.
