@@ -1,6 +1,6 @@
 # Sounder Crew Report migration
 
-Status: **staging deployed and API-tested; production deployed at sounderreport.com; preview crew login, submissions, daily closeout, administrator retrieval and PDF export passed; final authenticated main-domain checks are pending.**
+Status: **staging deployed and API-tested; production deployed at sounderreport.com; preview crew login, submissions, daily closeout, administrator retrieval and PDF export passed; main-domain administrator sign-in, persisted report retrieval and PDF download passed; main-domain crew sign-in remains pending.**
 
 - Staging: https://staging.sounderreport.com
 - Production candidate: https://preview.sounderreport.com (separate production database; permanent accounts configured)
@@ -48,5 +48,5 @@ These automated checks do not replace the remaining authenticated desktop/mobile
 1. Permanent staging and production accounts are configured, with independent peppers and databases. Setup links are single-use. Never request passwords in chat.
 2. Preview production crew submissions and daily closeout persisted two synthetic reports totaling 20 passengers. Administrator retrieval and combined PDF download passed. Both interfaces were exercised at a 390px frame width; header/card overflow was corrected and no horizontal document overflow remained. This is responsive Chromium verification, not physical iOS/Android testing. A download-event check inside the test iframe timed out; top-level PDF export succeeded. The temporary responsive harness was removed from the deployed release.
 3. Production D1 contains only synthetic migration tests. No private employee data was imported. Remove synthetic reports after final authenticated main-domain verification.
-4. The tested release is deployed at sounderreport.com, including /admin. Main-domain crew sign-in requires user credential verification (the first attempt was rejected). Complete both role logins, submission/retrieval/export and logout checks on the main domain before declaring completion.
+4. The tested release is deployed at sounderreport.com, including /admin. Main-domain crew sign-in requires user credential verification (the first attempt was rejected). Main-domain administrator login, retrieval of the preview-created records and PDF download passed. Complete crew sign-in/submission and logout checks on the main domain before declaring completion.
 5. Email remains an explicit limitation until authorized/configured and tested. No additional publication approval is needed beyond the user's existing instruction once release gates pass.
