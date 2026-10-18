@@ -1,0 +1,1 @@
+Connection test only. No sensitive information.
