@@ -1,52 +1,44 @@
-# Sounder Crew Report migration
+# Sounder Crew Report
 
-Status: **staging deployed and API-tested; production deployed at sounderreport.com; preview crew login, submissions, daily closeout, administrator retrieval and PDF export passed; main-domain administrator sign-in, persisted report retrieval and PDF download passed; main-domain crew sign-in remains pending.**
+Production: https://sounderreport.com  
+Administrator: https://sounderreport.com/admin  
+Staging: https://staging.sounderreport.com
 
-- Staging: https://staging.sounderreport.com
-- Production candidate: https://preview.sounderreport.com (separate production database; permanent accounts configured)
-- Production: https://sounderreport.com (attached to sounder-app after preview verification)
-- Original Hatchable app: https://sounder-crew-report.hatchable.site (unchanged)
-- Work branch: `work/sounder-app-build`
+Status: **Cloudflare migration deployed and live production workflows verified on October 18, 2026.**
 
-## Implemented
+## Reporting and authentication
 
-Original employee and administrator layouts, North/South schedules, assignments, actual station times, passenger activity, bikes/ADA counts, duty and crew fields, delays, mechanical issues, consist, door override, and signoffs are preserved. Server-side schedule validation uses a snapshot of the same original timetable. This migration does not certify timetable accuracy or connect the app to company systems; the original demo notices are retained.
+The original employee and administrator layouts, North/South schedules, assignments, station times, passenger activity, bikes/ADA counts, duty and crew fields, delays, mechanical issues, consist, door override and signoffs are preserved. The application is independent and is not connected to official company systems. Schedule accuracy is not certified by this migration.
 
-The Worker uses parameterized D1 queries and atomic batches. A train is marked complete only after a database receipt. Unsent reports remain on the device with a retry button and stable submission identifiers. Lost-response retries do not duplicate records. Daily closeout validates all assignment train receipts, persists a daily report, and marks its train reports submitted. Administrator retrieval supports pagination across the original 90-day view without deleting older database records.
+Train completion requires a database receipt. Unsent reports stay on the device with a retry button and stable submission identifiers; lost-response retries do not duplicate records. Daily closeout requires receipts for every assignment train and persists the combined report. Administrator retrieval includes pagination across the original rolling 90-day view; older records are not automatically deleted.
 
-Crew authentication is a shared crew account, as selected by the owner. Administrator authentication is separate. Passwords are salted PBKDF2-SHA256 hashes with a Worker-secret pepper, 100,000 iterations, and a minimum 16-character setup password. The two passwords must differ. Login attempts are limited per role/IP. Random opaque session cookies are Secure, HttpOnly, SameSite=Strict and expire after eight hours. Only session hashes are stored; logout revokes them. Setup rotates both accounts and revokes all sessions. Mutations require the same Origin, JSON submissions are size-limited, and untrusted report text is HTML-escaped. CSP blocks inline scripts and external script execution.
+The owner configured a shared crew login and a separate administrator login. Passwords use salted PBKDF2-SHA256 hashes with an encrypted Worker-secret pepper. Random opaque Secure/HttpOnly/SameSite=Strict session cookies expire after eight hours; only session hashes are stored, and logout revokes them. Rate limits, JSON/body limits, same-origin mutation checks, parameterized SQL, output escaping and a restrictive CSP protect the application. Setup links expire and work once; no public registration is available.
 
-PDF libraries are pinned and vendored locally with their licenses. Individual and filtered PDF exports are implemented. Email/share uses the device share sheet when supported, otherwise a download that the user can attach to email.
+Production uses Worker `sounder-app` and D1 `sounder-reports`; staging uses Worker `sounder-staging` and D1 `sounder-reports-staging`. They have separate peppers, accounts and sessions. Both workers.dev routes and preview URLs are disabled. The additional preview.sounderreport.com hostname serves the production Worker/database and is not a separate staging environment.
 
-## Data separation and email
+## Deployment and source
 
-Staging uses `sounder-reports-staging`, separate from existing production D1 `sounder-reports`. No private Hatchable employee records were read or migrated. Only synthetic reports were used in tests.
+`wrangler.jsonc` defaults to staging; select the production environment explicitly for the main domain. Never commit secret values. `npm run bundle` creates `dist/worker.mjs`, embedding local frontend assets for deployment through the connected Cloudflare API. Build output is ignored by Git.
 
-Automatic email is **disabled and not implemented as an active delivery path**. Cloudflare Email Sending setup returned API error 2036 (Unauthorized). Each saved train gets a durable outbox row with state `disabled`; the UI states that email is not configured. Enabling delivery requires an authorized email provider/domain, an approved sender and recipient, retry delivery implementation, and a successful test. Do not toggle EMAIL_ENABLED and assume email works.
+Production deployment ID: `a804641567c649ddbb2ab6910116b015`. The temporary responsive verification harness was removed before the release. The original Hatchable application was neither modified nor deleted, and private employee records were not migrated.
 
-## Configuration and deployment
+## Verification
 
-`wrangler.jsonc` defaults to staging. Production must be selected explicitly; its custom domain is sounderreport.com. The encrypted Worker secret `AUTH_PEPPER` is required; never store its value in this repository. The production candidate has its own encrypted pepper and has independent permanent accounts. The schema migrations are additive and contain no private records or credentials.
+- 27 automated backend/security/persistence checks and 16 frontend/XSS/PDF checks passed with `npm test`.
+- 20 live staging API checks previously passed, including role isolation, persistence, duplicate-safe retries and logout.
+- Live production crew and administrator sign-ins passed at sounderreport.com.
+- Both assignment train submissions received database receipts; daily closeout persisted and cleared the form.
+- The live administrator retrieved those reports, including records first created on the preview hostname, confirming persistence across sessions and hosts.
+- Individual/combined PDFs passed frontend tests; live staging individual/combined and live production combined downloads succeeded. Production PDF content contained the expected train/crew/station details.
+- Crew and administrator logout passed; revisiting the protected crew root returned to login.
+- Phone-width Chromium testing exercised the crew workflow, daily closeout and administrator report details at a 390px frame width. Header/card overflow was corrected; both documents fit their available width.
+- All four production synthetic train reports, their receipt/outbox records and both synthetic daily closeouts were removed by exact identifiers. The production administrator confirmed zero reports after cleanup. Permanent accounts remain configured.
+- Anonymous administrator API requests return 401; the temporary QA route returns 404. No Peptide Tracker references remain in current project files or public application addresses.
 
-The connected Cloudflare API deployed `dist/worker.mjs`, produced by `npm run bundle`. That deterministic bundle embeds static text assets so API deployments need only one Worker module; the source backend and frontend are the same as the standard assets-binding deployment. Build output is ignored by Git. Keep deployments and code commits in sync.
+## Known limitations
 
-Initial credentials and setup tokens are generated outside the repository by `scripts/prepare-test-credentials.mjs`. That script is for migration/testing and must never run as an application endpoint. Setup tokens are random, stored hashed in D1, expire, and can be used once. Issue a new token through the authorized Cloudflare connector if a reset is needed; invalidate old unused tokens. No public registration is available.
+Automatic email delivery is disabled. Cloudflare Email Sending setup returned Unauthorized. Enabling delivery requires an authorized provider/domain, approved sender/recipients, retry implementation and a successful delivery test. Do not enable EMAIL_ENABLED and assume mail delivery works. PDFs can be downloaded and manually attached/shared; native sharing availability depends on the device/browser.
 
-## Validation
+Mobile verification used responsive Chromium frames, not physical iOS/Android devices. A download-event check inside the temporary srcdoc test iframe timed out; the normal top-level production PDF download passed. Native device share sheets, installed-PWA behavior and operating-system notifications were not verified.
 
-Run `npm ci && npm test`. Tests use synthetic fixtures, local workerd/D1 and JSDOM:
-
-- 27 backend authentication, authorization, validation, CSRF, idempotency, persistence, rate-limit, logout and setup checks.
-- 16 frontend submission, failed-report retry, daily closeout, stored HTML injection, and individual/combined PDF checks.
-- `tests/live-api.py` separately exercised 20 checks against deployed staging, including both logins, D1 persistence, role isolation, duplicate retry, daily closeout, retrieval and logout. It requires private credentials outside the repository and writes only synthetic evidence outside the repository.
-- PDF output was rendered and inspected; PDF libraries were upgraded to patched versions after an audit identified vulnerabilities in the initial versions.
-
-These automated checks do not replace the remaining authenticated desktop/mobile browser checks. Do not mark production complete until the real domain and `/admin` have been exercised after cutover.
-
-## Final production verification
-
-1. Permanent staging and production accounts are configured, with independent peppers and databases. Setup links are single-use. Never request passwords in chat.
-2. Preview production crew submissions and daily closeout persisted two synthetic reports totaling 20 passengers. Administrator retrieval and combined PDF download passed. Both interfaces were exercised at a 390px frame width; header/card overflow was corrected and no horizontal document overflow remained. This is responsive Chromium verification, not physical iOS/Android testing. A download-event check inside the test iframe timed out; top-level PDF export succeeded. The temporary responsive harness was removed from the deployed release.
-3. Production D1 contains only synthetic migration tests. No private employee data was imported. Remove synthetic reports after final authenticated main-domain verification.
-4. The tested release is deployed at sounderreport.com, including /admin. Main-domain crew sign-in requires user credential verification (the first attempt was rejected). Main-domain administrator login, retrieval of the preview-created records and PDF download passed. Complete crew sign-in/submission and logout checks on the main domain before declaring completion.
-5. Email remains an explicit limitation until authorized/configured and tested. No additional publication approval is needed beyond the user's existing instruction once release gates pass.
+The Cloudflare hosting account retains its existing internal account name; the Sounder application and public URLs use Sounder naming. No unrelated projects or account-wide settings were renamed.
