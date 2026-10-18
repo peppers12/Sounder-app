@@ -12,7 +12,7 @@ function addTitle(doc,title,subtitle){
 }
 function addReport(doc,r,startY=30){
   const crew=r.crew_info||{}, sign=r.crew_signoff||{};
-  addTitle(doc,"Sounder Crew Report","DEMO · "+safe(r.line_label)+" · Assignment "+safe(r.assignment)+" · Train "+safe(r.train));
+  addTitle(doc,"Sounder Crew Report","INDEPENDENT APP · "+safe(r.line_label)+" · Assignment "+safe(r.assignment)+" · Train "+safe(r.train));
   doc.autoTable({
     startY,
     theme:"grid",
