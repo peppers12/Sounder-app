@@ -1,1 +1,21 @@
-{"name":"sounder-cloudflare","private":true,"type":"module","scripts":{"deploy":"wrangler deploy","dev":"wrangler dev"},"devDependencies":{"wrangler":"^4.0.0"}}
+{
+  "name": "sounder-cloudflare",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "bundle": "node scripts/bundle.mjs",
+    "test": "npm run bundle && node tests/integration.mjs && node tests/frontend.mjs",
+    "test:live": "python tests/live-api.py"
+  },
+  "devDependencies": {
+    "jsdom": "27.0.1",
+    "miniflare": "5.20261012.1-beta",
+    "wrangler": "4.151.1"
+  },
+  "dependencies": {
+    "jspdf": "4.2.1",
+    "jspdf-autotable": "5.0.9"
+  }
+}

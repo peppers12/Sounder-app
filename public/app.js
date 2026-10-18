@@ -176,7 +176,7 @@ function renderDelaysAndStatuses(){
 }
 function renderProgress(){
   const runs=assignmentRuns();
-  const done=runs.filter(t=>state.completed[`${state.line}:${state.assignment}:${t}`]);
+  const done=runs.filter(t=>{const r=state.completed[`${state.line}:${state.assignment}:${t}`];return r?.receiptId&&r.crewInfo?.reportDate===value("reportDate")});
   const pct=Math.round((done.length/runs.length)*100);
   $("#progressTitle").textContent=`Assignment ${state.assignment}`;
   $("#progressText").textContent=`${done.length} of ${runs.length} trains completed`;
@@ -184,7 +184,7 @@ function renderProgress(){
   $("#progressBar").style.width=`${pct}%`;
   $("#completedTrips").innerHTML=done.map(t=>{
     const x=state.completed[`${state.line}:${state.assignment}:${t}`];
-    return `<div class="completed-trip"><span>✓ Train ${t}</span><strong>${x.passengers} passengers</strong></div>`;
+    return `<div class="completed-trip"><span>✓ Train ${t}</span><strong>${Number(x.passengers)||0} passengers</strong></div>`;
   }).join("");
   $("#submitBtn").disabled=done.length!==runs.length;
 }
@@ -253,6 +253,9 @@ function changeLine(line){
   populateAssignments();populateTrains();applyDutyTimes();resetCounters();renderStations();renderProgress();
 }
 async function saveTrain(){
+  if(submitting)return;
+  submitting=true;
+  try{
   const tr=currentTrain();
   const actuals=$$(".station-row[data-index]").map((row,i)=>({
     station:tr.stops[i][0],scheduled:tr.stops[i][1],
@@ -279,26 +282,26 @@ async function saveTrain(){
     savedAt:new Date().toISOString()
   };
   const key=`${state.line}:${state.assignment}:${state.train}`;
+  const submissionId=crypto.randomUUID();
+  const payload={lineLabel:currentLine().label,assignment:state.assignment,...record,submissionId};
+  const pending=readPending();pending[submissionId]={key,payload};
+  try{localStorage.setItem('sounderPendingReports',JSON.stringify(pending))}catch{showModal('<h3>Device storage is full</h3><p>The report was not submitted. Free some space and try again.</p>');return}
+  let result;
+  try{result=await submitPending(submissionId)}catch(e){showModal('<h3>Report not received</h3><p>'+escapeText(e.message)+'</p><p>Your report remains on this device. Use “Retry unsent reports” before clearing browser data.</p>');renderPending();return}
+  record.receiptId=result.id;
   state.completed[key]=record;
   localStorage.setItem("sounderDemoCompleted",JSON.stringify(state.completed));
-  renderProgress();
-  let emailSent=false;
-  try {
-    const resp=await fetch((window.__HATCHABLE__?.api||"/api")+"/send-demo-report",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({lineLabel:currentLine().label,assignment:state.assignment,...record})
-    });
-    emailSent=resp.ok;
-  } catch(e) { emailSent=false; }
+  renderProgress();renderPending();
   const runs=assignmentRuns(), idx=runs.indexOf(state.train);
   const next=runs.find((t,i)=>i>idx&&!state.completed[`${state.line}:${state.assignment}:${t}`]) ||
              runs.find(t=>!state.completed[`${state.line}:${state.assignment}:${t}`]);
-  showModal(`<div class="success-mark">✅</div><h3>Train ${state.train} saved</h3><p><strong>Saved on device ✓</strong><br>${emailSent?'<strong>Report submitted ✓</strong><br><span class="muted">Saved to the reporting service</span>':'<strong>Cloudflare report submission is not yet enabled</strong><br><span class="muted">The train is still saved on this device.</span>'}</p>
+  showModal(`<div class="success-mark">✅</div><h3>Train ${state.train} received</h3><p><strong>Saved to the reporting database ✓</strong><br><span class="muted">Automatic email delivery is not configured. Administrators can retrieve and export this report.</span></p>
   <div class="review-grid"><div class="review-cell"><span>Bikes</span><strong>${record.bikes}</strong></div><div class="review-cell"><span>ADA</span><strong>${record.ada}</strong></div><div class="review-cell"><span>Passengers</span><strong>${record.passengers}</strong></div><div class="review-cell"><span>Stops</span><strong>${actuals.filter(x=>x.actual).length}</strong></div></div>
   ${next?`<p><strong>Next train:</strong> ${next}</p><button class="primary-btn" id="openNext">Open Train ${next}</button>`:"<p><strong>All trains in this assignment are saved.</strong></p>"}`);
   if(next) setTimeout(()=>$("#openNext")?.addEventListener("click",()=>{state.train=next;$("#trainSelect").value=next;resetCounters();resetTrainExtras();renderStations();closeModal()}),0);
+  }finally{submitting=false}
 }
+
 function showModal(html){$("#modalContent").innerHTML=html;$("#modal").classList.remove("hidden")}
 function closeModal(){$("#modal").classList.add("hidden")}
 
@@ -311,14 +314,19 @@ $$(".counter-control button").forEach(b=>b.addEventListener("click",()=>{
  const input=$("#"+b.dataset.counter),next=Math.max(0,(Number(input.value)||0)+Number(b.dataset.delta));input.value=next;
 }));
 $("#saveTrainBtn").addEventListener("click",saveTrain);
-$("#submitBtn").addEventListener("click",()=>{
+$("#submitBtn").addEventListener("click",async()=>{
+ if(submitting)return;
+ submitting=true;
+ try{
  const records=assignmentRuns().map(t=>state.completed[`${state.line}:${state.assignment}:${t}`]).filter(Boolean);
  const total=records.reduce((n,r)=>n+r.passengers,0);
  const submittedLine=currentLine().label;
  const submittedAssignment=state.assignment;
+ const response=await fetch('/api/employee/daily-report',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({lineLabel:submittedLine,assignment:submittedAssignment,reportDate:value('reportDate'),reportIds:records.map(r=>r.receiptId)})});
+ const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'Daily report could not be confirmed');
 
- state.completed={};
- localStorage.removeItem("sounderDemoCompleted");
+ for(const train of assignmentRuns())delete state.completed[`${state.line}:${state.assignment}:${train}`];
+ localStorage.setItem('sounderDemoCompleted',JSON.stringify(state.completed));
  state.line="north";
  state.assignment="6501";
  state.train="1701";
@@ -331,11 +339,32 @@ $("#submitBtn").addEventListener("click",()=>{
  renderStations();
  renderProgress();
 
- showModal(`<div class="success-mark">📨</div><h3>Demo daily report submitted</h3><p>The completed demo report for <strong>${submittedLine} · Assignment ${submittedAssignment}</strong> has been closed out.</p><div class="review-grid"><div class="review-cell"><span>Trains</span><strong>${records.length}</strong></div><div class="review-cell"><span>Passengers</span><strong>${total}</strong></div></div><p><strong>Form cleared ✓</strong><br><span class="muted">The app is ready for the next crew member.</span></p><p class="fineprint">No daily-report submission was transmitted. This remains a fictional demonstration only.</p>`);
+ showModal(`<div class="success-mark">📨</div><h3>Daily report received</h3><p>The completed report for <strong>${submittedLine} · Assignment ${submittedAssignment}</strong> has been closed out.</p><div class="review-grid"><div class="review-cell"><span>Trains</span><strong>${records.length}</strong></div><div class="review-cell"><span>Passengers</span><strong>${total}</strong></div></div><p><strong>Form cleared ✓</strong><br><span class="muted">The app is ready for the next crew member.</span></p><p class="fineprint">Every train report and this daily closeout are saved in the database. Automatic email delivery is not configured.</p>`);
+ }catch(e){showModal('<h3>Daily report not closed</h3><p>'+escapeText(e.message)+'</p><p>Your saved train reports remain available. Try again.</p>')}finally{submitting=false}
 });
-$("#helpBtn").addEventListener("click",()=>showModal(`<h3>How this demo works</h3><p><strong>1.</strong> Select Sounder North or South.</p><p><strong>2.</strong> Choose the crew assignment. Only trains belonging to that assignment appear.</p><p><strong>3.</strong> Choose a train. Scheduled station times populate automatically.</p><p><strong>4.</strong> Tap Actual to use the phone/iPad time picker. Only delays of 6 minutes or more prompt for a reason. Delays of 5:59 or less are not recordable.</p><p><strong>5.</strong> Enter Bikes, ADA and Total Passengers, then Save Train.</p><p><strong>6.</strong> When all trains are complete, Submit Daily Report becomes available.</p><p class="fineprint">Demo only — not an official Sound Transit or BNSF reporting application.</p>`));
+$("#reportDate").addEventListener("change",renderProgress);
+$("#helpBtn").addEventListener("click",()=>showModal(`<h3>How reporting works</h3><p><strong>1.</strong> Select Sounder North or South.</p><p><strong>2.</strong> Choose the crew assignment. Only trains belonging to that assignment appear.</p><p><strong>3.</strong> Choose a train. Scheduled station times populate automatically.</p><p><strong>4.</strong> Tap Actual to use the phone/iPad time picker. Only delays of 6 minutes or more prompt for a reason. Delays of 5:59 or less are not recordable.</p><p><strong>5.</strong> Enter Bikes, ADA and Total Passengers, then Save Train.</p><p><strong>6.</strong> When all trains are complete, Submit Daily Report becomes available.</p><p class="fineprint">Independent application — not an official Sound Transit or BNSF reporting system. Saved reports are stored in this app’s database; automatic email delivery is not configured.</p>`));
 $("#modalClose").addEventListener("click",closeModal);
 $("#modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
 try{state.completed=JSON.parse(localStorage.getItem("sounderDemoCompleted")||"{}")}catch{}
 $("#reportDate").value=localDateValue();
 populateAssignments();populateTrains();applyDutyTimes();renderStations();renderProgress();
+let submitting=false;
+function escapeText(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function readPending(){try{return JSON.parse(localStorage.getItem('sounderPendingReports')||'{}')}catch{return {}}}
+async function submitPending(id){
+ const entry=readPending()[id];if(!entry)throw Error('Pending report unavailable');
+ const r=await fetch('/api/send-demo-report',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(entry.payload)});
+ const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||'Unable to reach the reporting service');
+ const pending=readPending();delete pending[id];localStorage.setItem('sounderPendingReports',JSON.stringify(pending));return d;
+}
+function renderPending(){const n=Object.keys(readPending()).length;const el=document.querySelector('#retryPending');if(el){el.hidden=!n;el.textContent='Retry unsent reports ('+n+')'}}
+const retryButton=document.createElement('button');retryButton.id='retryPending';retryButton.className='primary-btn';retryButton.type='button';document.querySelector('main').prepend(retryButton);renderPending();
+retryButton.addEventListener('click',async()=>{
+ if(submitting)return;submitting=true;retryButton.disabled=true;
+ let received=0;
+ try{for(const [id,entry] of Object.entries(readPending())){const result=await submitPending(id);state.completed[entry.key]={...entry.payload,receiptId:result.id};localStorage.setItem('sounderDemoCompleted',JSON.stringify(state.completed));received++}showModal('<h3>Reports received</h3><p>'+received+' report(s) saved to the database.</p>')}
+ catch(e){showModal('<h3>Retry paused</h3><p>'+received+' report(s) received. '+escapeText(e.message)+'</p><p>Remaining reports are still saved on this device.</p>')}
+ finally{submitting=false;retryButton.disabled=false;renderPending();renderProgress()}
+});
+const logoutButton=document.createElement('button');logoutButton.type='button';logoutButton.textContent='Sign Out';logoutButton.className='primary-btn';document.querySelector('main').append(logoutButton);logoutButton.addEventListener('click',async()=>{await fetch('/api/employee/logout',{method:'POST'});location.assign('/login.html')});

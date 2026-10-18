@@ -1,13 +1,31 @@
 {
-  "name": "sounder-app",
+  "name": "sounder-staging",
   "main": "src/index.js",
   "compatibility_date": "2026-10-18",
-  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": true },
-    "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "sounder-reports",
-      "database_id": "3cd176b8-1f9e-4b51-be05-cc04d329b809"
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{"pattern": "staging.sounderreport.com", "custom_domain": true}],
+  "observability": {"enabled": true, "head_sampling_rate": 1},
+  "assets": {"directory": "./public", "binding": "ASSETS", "run_worker_first": true},
+  "vars": {"SUBMISSIONS_ENABLED": "true", "EMAIL_ENABLED": "false"},
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "sounder-reports-staging",
+    "database_id": "ee7f389e-f769-4f16-84bf-25cb3ae9f80f"
+  }],
+  "env": {
+    "production": {
+      "name": "sounder-app",
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [{"pattern": "sounderreport.com", "custom_domain": true}, {"pattern": "preview.sounderreport.com", "custom_domain": true}],
+      "vars": {"SUBMISSIONS_ENABLED": "true", "EMAIL_ENABLED": "false"},
+      "d1_databases": [{
+        "binding": "DB",
+        "database_name": "sounder-reports",
+        "database_id": "3cd176b8-1f9e-4b51-be05-cc04d329b809"
+      }]
     }
-  ]
+  }
 }

@@ -1,0 +1,44 @@
+import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
+import {readFile} from 'node:fs/promises';
+import {randomBytes,webcrypto} from 'node:crypto';
+import assert from 'node:assert/strict';
+import {passwordHash,digest} from '../src/index.js';
+import {DATA} from '../src/schedule.js';
+const pepper=randomBytes(32).toString('hex');
+const mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'dist/worker.mjs',compatibilityDate:'2026-10-18',compatibilityFlags:['nodejs_compat'],d1Databases:{DB:'local-sounder'},bindings:{AUTH_PEPPER:pepper,SUBMISSIONS_ENABLED:'true'}}));
+const db=await mf.getD1Database('DB');
+let checks=0;
+const ok=(condition,message)=>{assert.ok(condition,message);checks++};
+const origin='https://sounder.test';
+async function call(path,{method='GET',body,cookie,headers={}}={}){return mf.dispatchFetch(origin+path,{method,redirect:'manual',headers:{...(method==='POST'?{origin,'content-type':'application/json'}:{}),...(cookie?{cookie}:{}),...headers},...(body===undefined?{}:{body:JSON.stringify(body)})})}
+try{
+ for(const f of ['0001_reports.sql','0002_security.sql'])for(const sql of (await readFile('migrations/'+f,'utf8')).split(';').filter(x=>x.trim()))await db.prepare(sql).run();
+ for(const role of ['admin','employee']){const salt=randomBytes(32).toString('hex');await db.prepare('INSERT INTO sounder_accounts(role,username,salt,password_hash) VALUES(?,?,?,?)').bind(role,role,salt,await passwordHash('test-'+role+'-password-123456',salt,pepper)).run()}
+ ok((await call('/')).status===302,'Employee page locked');
+ ok((await call('/api/admin/reports')).status===401,'Admin reports locked');
+ ok((await call('/api/employee/login',{method:'POST',body:{username:'employee',password:'wrong'}})).status===401,'Wrong password blocked');
+ const sessions={};
+ for(const role of ['employee','admin']){const r=await call('/api/'+role+'/login',{method:'POST',body:{username:role,password:'test-'+role+'-password-123456'}});ok(r.status===200,role+' login');const c=r.headers.get('set-cookie');ok(c.includes('HttpOnly')&&c.includes('Secure')&&c.includes('SameSite=Strict'),role+' secure cookie');sessions[role]=c.split(';')[0]}
+ ok((await call('/api/admin/reports',{cookie:sessions.employee})).status===401,'Employee cannot read administrator data');
+ ok((await call('/',{cookie:sessions.employee})).status===200,'Employee form accessible');
+ const tr=DATA.north.trains['1701'];
+ const b={submissionId:crypto.randomUUID(),lineLabel:'Sounder North',assignment:'6501',train:'1701',direction:tr.direction,crewInfo:{reportDate:'2026-10-18',conductor:'<img src=x onerror=alert(1)>',engineer:'Synthetic Engineer',onDuty:'05:15',offDuty:'17:34'},actuals:tr.stops.map(([station,scheduled])=>({station,scheduled,actual:scheduled})),passengers:45,bikes:2,ada:1,passengerActivity:[{station:'Everett',on:45,off:0}],delays:[],mechanicalIssues:[{carEngine:'TEST',description:'Synthetic test'}],crewSignoff:{conductor:'TEST'},doorOverrideCompleted:true,doorOverrideInitials:'TEST'};
+ const submit=()=>call('/api/send-demo-report',{method:'POST',body:b,cookie:sessions.employee});
+ const r=await submit();ok(r.status===201,'Report submitted');const receipt=await r.json();ok(receipt.ok&&receipt.id,'Receipt returned');
+ ok((await submit()).status===200,'Retry is idempotent');
+ const count=await db.prepare('SELECT count(*) AS n FROM demo_trip_reports').first();ok(count.n===1,'Duplicate retry stores exactly one report');
+ ok((await call('/api/send-demo-report',{method:'POST',body:{...b,passengers:46},cookie:sessions.employee})).status===409,'Conflicting duplicate rejected');
+ ok((await call('/api/send-demo-report',{method:'POST',body:{...b,submissionId:crypto.randomUUID(),passengers:-1},cookie:sessions.employee})).status===400,'Invalid count rejected');
+ ok((await call('/api/send-demo-report',{method:'POST',body:{...b,submissionId:crypto.randomUUID(),train:'9999'},cookie:sessions.employee})).status===400,'Unknown train rejected');
+ ok((await call('/api/send-demo-report',{method:'POST',body:b,cookie:sessions.admin})).status===401,'Administrator cookie does not submit as employee');
+ ok((await call('/api/send-demo-report',{method:'POST',body:b,cookie:sessions.employee,headers:{origin:'https://evil.test'}})).status===403,'Cross-origin submission rejected');
+ const list=await (await call('/api/admin/reports',{cookie:sessions.admin})).json();ok(list.reports.length===1&&list.reports[0].passengers===45,'Administrator retrieves persisted report');ok(list.reports[0].crew_info.engineer==='Synthetic Engineer','Extended report fields preserved');
+ for(let i=0;i<10;i++)await call('/api/admin/login',{method:'POST',body:{username:'admin',password:'wrong'}});
+ ok((await call('/api/admin/login',{method:'POST',body:{username:'admin',password:'wrong'}})).status===429,'Login throttled');
+ const logout=await call('/api/employee/logout',{method:'POST',cookie:sessions.employee});ok(logout.status===200,'Employee logout');ok((await call('/api/employee/session',{cookie:sessions.employee})).status===200,'Session check responds');ok(!(await (await call('/api/employee/session',{cookie:sessions.employee})).json()).ok,'Logged-out session revoked on server');
+ const setupToken=randomBytes(32).toString('hex');await db.prepare('INSERT INTO sounder_setup(token_hash,expires) VALUES(?,?)').bind(await digest(setupToken),Date.now()+60000).run();
+ const setupBody={token:setupToken,admin:{username:'newadmin',password:'new-admin-password-123456'},employee:{username:'newcrew',password:'new-crew-password-123456'}};
+ ok((await call('/api/setup',{method:'POST',body:setupBody})).status===200,'Private account setup');ok((await call('/api/setup',{method:'POST',body:setupBody})).status===403,'Setup link one use');
+ ok(!(await (await call('/api/admin/session',{cookie:sessions.admin})).json()).ok,'Password setup revokes existing administrator sessions');
+ console.log(checks+' security and persistence checks passed.');
+} finally {await mf.dispose()}

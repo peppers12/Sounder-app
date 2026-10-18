@@ -23,7 +23,7 @@ async function setBadge(){
 }
 function toast(report){
   const el=document.querySelector("#adminToast"); if(!el)return;
-  el.innerHTML="<strong>New Train Report</strong><span>Train "+report.train+" · Assignment "+report.assignment+" · "+Number(report.passengers||0)+" passengers</span>";
+  el.innerHTML="<strong>New Train Report</strong><span>Train "+escapeHtml(report.train)+" · Assignment "+escapeHtml(report.assignment)+" · "+Number(report.passengers||0)+" passengers</span>";
   el.classList.remove("hidden");
   clearTimeout(window.__sounderToastTimer);
   window.__sounderToastTimer=setTimeout(()=>el.classList.add("hidden"),7000);
@@ -33,7 +33,7 @@ async function notify(report){
   try{
     const reg=await navigator.serviceWorker.ready;
     await reg.showNotification("New Sounder Train Report",{
-      body:"Train "+report.train+" · Assignment "+report.assignment+" · "+Number(report.passengers||0)+" passengers",
+      body:"Train "+escapeHtml(report.train)+" · Assignment "+escapeHtml(report.assignment)+" · "+Number(report.passengers||0)+" passengers",
       tag:"sounder-report-"+report.id,
       data:{url:"/admin.html"}
     });

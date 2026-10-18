@@ -1,1 +1,1 @@
-{"name":"Sounder Supervisor Dashboard","short_name":"Sounder Admin","id":"/admin-dashboard","start_url":"/admin.html","scope":"/","display":"standalone","background_color":"#eef3f8","theme_color":"#0b3b70","description":"Demo supervisor dashboard for Sounder crew reports."}
+{"name":"Sounder Supervisor Dashboard","short_name":"Sounder Admin","id":"/admin-dashboard","start_url":"/admin.html","scope":"/","display":"standalone","background_color":"#eef3f8","theme_color":"#0b3b70","description":"Administrator dashboard for crew reports. Not connected to company systems."}

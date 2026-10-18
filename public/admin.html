@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0b3b70">
-  <title>Sounder Admin Dashboard Demo</title>
+  <title>Sounder Admin Dashboard</title>
   <link rel="manifest" href="/admin-manifest.json">
   <link rel="stylesheet" href="/admin.css">
 </head>
@@ -21,7 +21,7 @@
       <button id="loginBtn" type="submit">Sign In</button>
       <div id="loginError" class="login-error hidden">Incorrect username or password.</div>
     </form>
-    <div class="login-note">DEMO ONLY — administrator access</div>
+    <div class="login-note">Secure administrator access</div>
   </div>
 </div>
 
@@ -37,7 +37,7 @@
     <button class="logout-btn" id="logoutBtn">Logout</button>
   </div>
 </header>
-<div class="demo">DEMO ONLY — FICTIONAL ADMINISTRATOR VIEW</div>
+<div class="demo">INDEPENDENT APP — NOT CONNECTED TO COMPANY SYSTEMS</div>
 
 <main>
   <div id="adminToast" class="admin-toast hidden"></div>
@@ -91,8 +91,8 @@
 </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js" defer></script>
+<script src="/vendor/jspdf.umd.min.js" defer></script>
+<script src="/vendor/jspdf.plugin.autotable.min.js" defer></script>
 <script src="/admin-auth.js" defer></script>
 <script src="/admin.js" defer></script>
 <script src="/admin-alerts.js" defer></script>
