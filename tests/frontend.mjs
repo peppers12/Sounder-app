@@ -60,8 +60,9 @@ conflictForm.dispatchEvent(new admin.window.Event('submit',{bubbles:true,cancela
 ok(conflictForm.querySelector('.edit-error').textContent.includes('report changed'),'Version conflict shown to administrator');
 ok([...conflictForm.querySelectorAll('label')].find(x=>x.querySelector('span')?.textContent==='Correction reason').querySelector('textarea').value==='Keep draft','Conflict keeps unsaved correction reason available');
 admin.window.document.querySelector('.edit-actions button[type=button]').click();
-let pdf=null;
-admin.window.jspdf={jsPDF:function(options){const doc=new jsPDF(options);doc.save=()=>{pdf=doc.output('arraybuffer')};return doc}};
+let pdf=null,pdfDoc=null;
+admin.window.jspdf={jsPDF:function(options){const doc=new jsPDF(options);pdfDoc=doc;doc.save=()=>{pdf=doc.output('arraybuffer')};return doc}};
+vm.runInContext(await readFile('public/pdf-branding.js','utf8'),a);
 vm.runInContext(await readFile('public/admin-export.js','utf8'),a);
 admin.window.document.dispatchEvent(new admin.window.Event('DOMContentLoaded'));
 admin.window.document.querySelector('#exportFilteredPdf').click();
@@ -71,4 +72,12 @@ admin.window.document.querySelector('.report-card').click();await new Promise(r=
 ok(admin.window.document.querySelector('.pdf-actions .download'),'Individual report PDF actions appear');
 pdf=null;admin.window.document.querySelector('.pdf-actions .download').click();
 ok(pdf&&new TextDecoder().decode(pdf.slice(0,5))==='%PDF-','Individual PDF export generates PDF bytes');
+ok(pdfDoc.getNumberOfPages()===1,'Short report remains on one letter-size page');
+const extended={...fixture,id:'synthetic-long',crew_info:{conductor:'Sample Conductor',engineer:'Sample Engineer',reliefConductor:'Sample Relief',studentEngineer:'Sample Student'},customer_service_issues:'Long narrative for page-flow verification. '.repeat(180)+' END-OF-SERVICE-NOTES',mechanical_issues:[{carEngine:'901',description:'Inspection details. '.repeat(150)+' END-OF-MECHANICAL-NOTES'}],passenger_activity:[{station:fixture.actuals[0].station,on:45,off:0},{station:'Extra activity station',on:2,off:1}],crew_signoff:{conductor:'SIGNOFF-SENTINEL'}};
+admin.window.layoutFixtures=[extended,{...fixture,id:'synthetic-second',train:'1700',customer_service_issues:'SECOND-REPORT-SENTINEL'}];
+vm.runInContext("reports=window.layoutFixtures;activeTab='reports';render()",a);
+admin.window.document.querySelector('#exportFilteredPdf').click();
+ok(pdfDoc.getNumberOfPages()>2,'Long narratives and multiple reports paginate');
+await writeFile('test-results/long-combined-export.pdf',Buffer.from(pdf));
+ok(Object.keys(pdfDoc.internal.collections.addImage_images).length===2,'Both logos are embedded and reused across report pages');
 admin.window.close();console.log(checks+' frontend behavior, XSS and PDF checks passed.');
