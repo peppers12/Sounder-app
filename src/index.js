@@ -19,6 +19,7 @@ async function session(req, env){
 async function issueToken(env){const payload=btoa(JSON.stringify({role:'admin',exp:Date.now()+8*3600000})).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');const mac=await crypto.subtle.sign('HMAC',await crypto.subtle.importKey('raw',new TextEncoder().encode(env.ADMIN_SESSION_SECRET),{name:'HMAC',hash:'SHA-256'},false,['sign']),new TextEncoder().encode(payload));return payload+'.'+Array.from(new Uint8Array(mac),b=>b.toString(16).padStart(2,'0')).join('')}
 export default {async fetch(req,env){
  const url=new URL(req.url),path=url.pathname;
+ if(path==='/admin' || path==='/admin/') return env.ASSETS.fetch(new Request(new URL('/admin.html',url),req));
  if(path.startsWith('/api/')){
   if(!env.DB)return json({error:'Database not configured'},503,corsHeaders);
   if(path==='/api/admin/login' && req.method==='POST'){
