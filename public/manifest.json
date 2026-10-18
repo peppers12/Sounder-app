@@ -9,13 +9,13 @@
   "id": "/crew-app",
   "icons": [
     {
-      "src": "/icons/crew-v1-192.png",
+      "src": "/icons/crew-v2-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/crew-v1-512.png",
+      "src": "/icons/crew-v2-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
