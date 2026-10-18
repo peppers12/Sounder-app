@@ -1,6 +1,6 @@
 import json,urllib.request,urllib.error,http.cookiejar,uuid,os,sys
 from pathlib import Path
-base=sys.argv[1] if len(sys.argv)>1 else 'https://sounder-staging.personalpeptidetracker.workers.dev'
+base=sys.argv[1] if len(sys.argv)>1 else 'https://staging.sounderreport.com'
 private=json.loads(Path('../sounder-private.json').read_text())
 checks=0
 import subprocess,tempfile
