@@ -31,7 +31,7 @@ export default {async fetch(req,env){
   if(path==='/api/admin/reports' && req.method==='GET'){
    if(!await session(req,env))return json({error:'Login required'},401,corsHeaders);
    const limit=Math.min(1000,Math.max(1,Number(url.searchParams.get('limit'))||250));
-   const result=await env.DB.prepare("SELECT * FROM trip_reports WHERE report_date >= date('now','-90 days') ORDER BY saved_at DESC LIMIT ?").bind(limit).all();
+   const result=await env.DB.prepare("SELECT * FROM demo_trip_reports WHERE report_date >= date('now','-90 days') ORDER BY saved_at DESC LIMIT ?").bind(limit).all();
    return json({reports:result.results.map(mapReport)},200,corsHeaders);
   }
   if(path==='/api/send-demo-report' && req.method==='POST'){
