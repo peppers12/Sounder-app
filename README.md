@@ -1,10 +1,10 @@
 # Sounder Crew Report migration
 
-Status: **staging deployed and API-tested; staging administrator retrieval and individual/combined browser PDF exports verified; production candidate deployed, cutover pending production login setup and final verification.**
+Status: **staging deployed and API-tested; production deployed at sounderreport.com; preview crew login, submissions, daily closeout, administrator retrieval and PDF export passed; final authenticated main-domain checks are pending.**
 
 - Staging: https://staging.sounderreport.com
-- Production candidate: https://preview.sounderreport.com (separate production database; accounts not provisioned yet)
-- Production target: https://sounderreport.com (unchanged during staging work)
+- Production candidate: https://preview.sounderreport.com (separate production database; permanent accounts configured)
+- Production: https://sounderreport.com (attached to sounder-app after preview verification)
 - Original Hatchable app: https://sounder-crew-report.hatchable.site (unchanged)
 - Work branch: `work/sounder-app-build`
 
@@ -26,7 +26,7 @@ Automatic email is **disabled and not implemented as an active delivery path**. 
 
 ## Configuration and deployment
 
-`wrangler.jsonc` defaults to staging. Production must be selected explicitly and is not attached to the domain yet. The encrypted Worker secret `AUTH_PEPPER` is required; never store its value in this repository. The production candidate has its own encrypted pepper and awaits independent account provisioning. The schema migrations are additive and contain no private records or credentials.
+`wrangler.jsonc` defaults to staging. Production must be selected explicitly; its custom domain is sounderreport.com. The encrypted Worker secret `AUTH_PEPPER` is required; never store its value in this repository. The production candidate has its own encrypted pepper and has independent permanent accounts. The schema migrations are additive and contain no private records or credentials.
 
 The connected Cloudflare API deployed `dist/worker.mjs`, produced by `npm run bundle`. That deterministic bundle embeds static text assets so API deployments need only one Worker module; the source backend and frontend are the same as the standard assets-binding deployment. Build output is ignored by Git. Keep deployments and code commits in sync.
 
@@ -43,10 +43,10 @@ Run `npm ci && npm test`. Tests use synthetic fixtures, local workerd/D1 and JSD
 
 These automated checks do not replace the remaining authenticated desktop/mobile browser checks. Do not mark production complete until the real domain and `/admin` have been exercised after cutover.
 
-## Remaining release gate
+## Final production verification
 
-1. Owner has configured permanent staging accounts. Configure the separate production accounts through the one-time private setup page; never request passwords in chat.
-2. Staging employee submission/daily closeout and administrator retrieval, individual/combined PDF downloads passed in the live browser. Complete remaining responsive/mobile verification and production authenticated checks.
-3. Production D1 tables and independent pepper are provisioned; production contains no employee reports. No private employee data was imported.
-4. Deploy the exact verified version, attach `sounderreport.com`, then repeat production smoke tests including `/admin`. Remove only the synthetic verification records and test sessions.
+1. Permanent staging and production accounts are configured, with independent peppers and databases. Setup links are single-use. Never request passwords in chat.
+2. Preview production crew submissions and daily closeout persisted two synthetic reports totaling 20 passengers. Administrator retrieval and combined PDF download passed. Both interfaces were exercised at a 390px frame width; header/card overflow was corrected and no horizontal document overflow remained. This is responsive Chromium verification, not physical iOS/Android testing. A download-event check inside the test iframe timed out; top-level PDF export succeeded. The temporary responsive harness was removed from the deployed release.
+3. Production D1 contains only synthetic migration tests. No private employee data was imported. Remove synthetic reports after final authenticated main-domain verification.
+4. The tested release is deployed at sounderreport.com, including /admin. Main-domain crew sign-in requires user credential verification (the first attempt was rejected). Complete both role logins, submission/retrieval/export and logout checks on the main domain before declaring completion.
 5. Email remains an explicit limitation until authorized/configured and tested. No additional publication approval is needed beyond the user's existing instruction once release gates pass.
