@@ -1,13 +1,21 @@
 let adminAuthenticated=false;
+window.SounderAdminAccess={role:null,canEdit:false};
 localStorage.removeItem('sounderAdminDemoSession');
 window.SounderDemoAuth={getDemoSession:()=>adminAuthenticated?'cookie-session':''};
 window.sounderAdminReady=(async()=>{
- try{const r=await fetch('/api/admin/session');const d=await r.json();adminAuthenticated=r.ok&&d.ok===true}catch{adminAuthenticated=false}
+ try{const r=await fetch('/api/admin/session');const d=await r.json();adminAuthenticated=r.ok&&d.ok===true;window.SounderAdminAccess={role:d.role,canEdit:adminAuthenticated&&d.canEdit===true}}catch{adminAuthenticated=false}
  return adminAuthenticated;
 })();
 document.addEventListener('DOMContentLoaded',async()=>{
  const form=document.querySelector('#loginForm'),error=document.querySelector('#loginError'),button=document.querySelector('#loginBtn');
- if(await window.sounderAdminReady){document.querySelector('#loginScreen').classList.add('hidden');document.querySelector('#adminApp').classList.remove('hidden')}
+ if(await window.sounderAdminReady){
+  document.querySelector('#loginScreen').classList.add('hidden');document.querySelector('#adminApp').classList.remove('hidden');
+  if(!window.SounderAdminAccess.canEdit){
+   document.querySelector('[data-tab="reports"]').hidden=true;
+   document.querySelector('#adminApp .eyebrow').textContent='SOUNDER CREW REPORT · VIEW ONLY';
+   document.title='Sounder Report Viewer';
+  }
+ }
  form.addEventListener('submit',async e=>{
   e.preventDefault();button.disabled=true;error.classList.add('hidden');
   try{

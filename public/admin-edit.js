@@ -1,4 +1,5 @@
 window.SounderAdminEditor={open(raw,onSaved){
+ if(window.SounderAdminAccess?.canEdit!==true)return;
  const body=document.querySelector('#drawerBody'),form=document.createElement('form');form.className='report-editor';
  const draft=JSON.parse(JSON.stringify(raw)),crew=draft.crew_info||{},sign=draft.crew_signoff||{};
  const title=document.createElement('h2');title.textContent='Edit Train '+raw.train;form.append(title);

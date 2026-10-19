@@ -140,7 +140,7 @@ function openDetail(id){
     (delayRows?'<h3>Recordable Delays (6+ min)</h3><table class="station-table"><thead><tr><th>Station</th><th>Minutes</th><th>Reason</th></tr></thead><tbody>'+delayRows+'</tbody></table>':"")+
     (r.customer_service_issues?'<h3>Customer Service Issues</h3><p>'+r.customer_service_issues+'</p>':"")+
     '<p style="font-size:11px;color:#798b9d;margin-top:18px">Record received '+fmtTimeStamp(r.saved_at)+'. Records shown here are limited to the rolling 90-day window.</p>';
-  const editButton=document.createElement("button");editButton.type="button";editButton.className="edit-report-button";editButton.textContent="Edit Report";editButton.addEventListener("click",()=>window.SounderAdminEditor.open(raw,saved=>{reports=reports.map(x=>x.id===saved.id?saved:x);render();openDetail(saved.id)}));$("#drawerBody").prepend(editButton);
+  if(window.SounderAdminAccess?.canEdit===true){const editButton=document.createElement("button");editButton.type="button";editButton.className="edit-report-button";editButton.textContent="Edit Report";editButton.addEventListener("click",()=>window.SounderAdminEditor.open(raw,saved=>{reports=reports.map(x=>x.id===saved.id?saved:x);render();openDetail(saved.id)}));$("#drawerBody").prepend(editButton);}
   if(raw.updated_at){const note=document.createElement("p");note.className="edit-note";note.textContent="Last corrected "+fmtTimeStamp(raw.updated_at)+" · Revision "+raw.revision;$("#drawerBody").append(note)}
   $("#drawer").classList.remove("hidden");
 }

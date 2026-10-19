@@ -20,6 +20,7 @@ const cookie=(role,token,age=28800)=>`${cookieName(role)}=${token}; Secure; Http
 function tokenFor(req,role){return (req.headers.get('cookie')||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(cookieName(role)+'='))?.split('=')[1]||''}
 async function session(req,env,role){
  const token=tokenFor(req,role);if(!/^[a-f0-9]{64}$/.test(token))return false;
+ if(role==='viewer')return !!await env.DB.prepare("SELECT s.token_hash FROM sounder_sessions s JOIN sounder_viewer_accounts a ON a.username='adminview' AND a.version=s.account_version WHERE s.token_hash=? AND s.role='viewer' AND s.expires>?").bind(await digest(token),Date.now()).first();
  return !!await env.DB.prepare('SELECT s.token_hash FROM sounder_sessions s JOIN sounder_accounts a ON a.role=s.role AND a.version=s.account_version WHERE s.token_hash=? AND s.role=? AND s.expires>?').bind(await digest(token),role,Date.now()).first();
 }
 async function rate(env,key,max,seconds){
@@ -72,21 +73,35 @@ async function handle(req,env){
  const login=path.match(/^\/api\/(employee|admin)\/(login|session|logout)$/);
  if(login){
   const [,role,action]=login;
-  if(action==='session'&&req.method==='GET')return json({ok:await session(req,env,role)});
+  if(action==='session'&&req.method==='GET'){
+   const access=await session(req,env,role)?role:role==='admin'&&await session(req,env,'viewer')?'viewer':null;
+   return json({ok:!!access,role:access,canEdit:access==='admin'});
+  }
   if(req.method!=='POST')return json({error:'Method not allowed'},405);
   if(action==='logout'){
    await env.DB.prepare('DELETE FROM sounder_sessions WHERE token_hash=?').bind(await digest(tokenFor(req,role))).run();
-   return json({ok:true},200,{'set-cookie':cookie(role,'',0)});
+   const response=json({ok:true},200,{'set-cookie':cookie(role,'',0)});
+   if(role==='admin'){
+    await env.DB.prepare('DELETE FROM sounder_sessions WHERE token_hash=?').bind(await digest(tokenFor(req,'viewer'))).run();
+    response.headers.append('set-cookie',cookie('viewer','',0));
+   }
+   return response;
   }
   const ip=req.headers.get('cf-connecting-ip')||'local';
   if(!await rate(env,'login:'+role+':'+ip,10,900))return json({error:'Too many attempts. Try in 15 minutes.'},429,{'retry-after':'900'});
   if(!env.AUTH_PEPPER)return json({error:'Login not configured'},503);
   const b=await readBody(req),username=text(b.username,100),password=text(b.password,256);
-  const a=await env.DB.prepare('SELECT * FROM sounder_accounts WHERE role=?').bind(role).first();
-  const hash=await passwordHash(password,a?.salt||'00'.repeat(32),env.AUTH_PEPPER);
+  let a=await env.DB.prepare('SELECT * FROM sounder_accounts WHERE role=?').bind(role).first(),access=role;
+  if(role==='admin'&&username!==a?.username){
+   a=await env.DB.prepare('SELECT * FROM sounder_viewer_accounts WHERE username=?').bind(username).first();access='viewer';
+  }
+  const hash=await passwordHash(password,a?.salt||'00'.repeat(32),access==='viewer'?'':env.AUTH_PEPPER);
   if(!a||!await equal(hash,a.password_hash)||username!==a.username)return json({error:'Invalid credentials'},401);
-  const token=random();await env.DB.prepare('INSERT INTO sounder_sessions(token_hash,role,account_version,expires) VALUES(?,?,?,?)').bind(await digest(token),role,a.version,Date.now()+28800000).run();
-  return json({ok:true},200,{'set-cookie':cookie(role,token)});
+  if(role==='admin')for(const oldRole of ['admin','viewer'])await env.DB.prepare('DELETE FROM sounder_sessions WHERE token_hash=?').bind(await digest(tokenFor(req,oldRole))).run();
+  const token=random();await env.DB.prepare('INSERT INTO sounder_sessions(token_hash,role,account_version,expires) VALUES(?,?,?,?)').bind(await digest(token),access,a.version,Date.now()+28800000).run();
+  const response=json({ok:true,role:access,canEdit:access==='admin'},200,{'set-cookie':cookie(access,token)});
+  if(role==='admin')response.headers.append('set-cookie',cookie(access==='admin'?'viewer':'admin','',0));
+  return response;
  }
  if(path==='/api/setup'&&req.method==='POST'){
   if(!await rate(env,'setup:'+(req.headers.get('cf-connecting-ip')||'local'),10,900))return json({error:'Too many attempts'},429);
@@ -109,7 +124,7 @@ async function handle(req,env){
   return json({ok:true});
  }
  if(path==='/api/admin/reports'&&req.method==='GET'){
-  if(!await session(req,env,'admin'))return json({error:'Administrator login required'},401);
+  if(!await session(req,env,'admin')&&!await session(req,env,'viewer'))return json({error:'Administrator login required'},401);
   const limit=Math.min(500,Math.max(1,parseInt(url.searchParams.get('limit'))||250));
   const before=url.searchParams.get('before')||'9999';
   const r=await env.DB.prepare("SELECT * FROM demo_trip_reports WHERE report_date>=date('now','-90 days') AND id<? ORDER BY id DESC LIMIT ?").bind(before,limit+1).all();
@@ -118,6 +133,7 @@ async function handle(req,env){
  }
  const editPath=path.match(/^\/api\/admin\/reports\/([^/]+)$/);
  if(editPath&&req.method==='PATCH'){
+  if(await session(req,env,'viewer')&&!await session(req,env,'admin'))return json({error:'View-only accounts cannot edit reports'},403);
   if(!await session(req,env,'admin'))return json({error:'Administrator login required'},401);
   if(!await rate(env,'admin-edit:'+await digest(tokenFor(req,'admin')),60,3600))return json({error:'Edit rate limit reached'},429);
   const id=decodeURIComponent(editPath[1]),b=await readBody(req);

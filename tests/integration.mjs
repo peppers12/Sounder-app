@@ -12,7 +12,7 @@ const ok=(condition,message)=>{assert.ok(condition,message);checks++};
 const origin='https://sounder.test';
 async function call(path,{method='GET',body,cookie,headers={}}={}){return mf.dispatchFetch(origin+path,{method,redirect:'manual',headers:{...(method==='POST'?{origin,'content-type':'application/json'}:{}),...(cookie?{cookie}:{}),...headers},...(body===undefined?{}:{body:JSON.stringify(body)})})}
 try{
- for(const f of ['0001_reports.sql','0002_security.sql','0003_admin_edits.sql'])for(const sql of (await readFile('migrations/'+f,'utf8')).split(';').filter(x=>x.trim()))await db.prepare(sql).run();
+ for(const f of ['0001_reports.sql','0002_security.sql','0003_admin_edits.sql','0004_report_viewers.sql'])for(const sql of (await readFile('migrations/'+f,'utf8')).split(';').filter(x=>x.trim()))await db.prepare(sql).run();
  for(const role of ['admin','employee']){const salt=randomBytes(32).toString('hex');await db.prepare('INSERT INTO sounder_accounts(role,username,salt,password_hash) VALUES(?,?,?,?)').bind(role,role,salt,await passwordHash('test-'+role+'-password-123456',salt,pepper)).run()}
  ok((await call('/')).status===302,'Employee page locked');
  ok((await call('/api/admin/reports')).status===401,'Admin reports locked');
@@ -20,6 +20,14 @@ try{
  const sessions={};
  for(const role of ['employee','admin']){const r=await call('/api/'+role+'/login',{method:'POST',body:{username:role,password:'test-'+role+'-password-123456'}});ok(r.status===200,role+' login');const c=r.headers.get('set-cookie');ok(c.includes('HttpOnly')&&c.includes('Secure')&&c.includes('SameSite=Strict'),role+' secure cookie');sessions[role]=c.split(';')[0]}
  ok((await call('/api/admin/reports',{cookie:sessions.employee})).status===401,'Employee cannot read administrator data');
+ const viewerSalt=randomBytes(32).toString('hex');
+ await db.prepare('INSERT INTO sounder_viewer_accounts(username,salt,password_hash) VALUES(?,?,?)').bind('adminview',viewerSalt,await passwordHash('synthetic-viewer-password',viewerSalt,'')).run();
+ const viewerLogin=await call('/api/admin/login',{method:'POST',body:{username:'adminview',password:'synthetic-viewer-password'}});
+ ok(viewerLogin.status===200,'View-only account signs into administrator login');
+ sessions.viewer=viewerLogin.headers.getSetCookie().find(c=>c.startsWith('__Host-sounder_viewer=')).split(';')[0];
+ const viewerSession=await (await call('/api/admin/session',{cookie:sessions.viewer})).json();
+ ok(viewerSession.ok&&viewerSession.role==='viewer'&&!viewerSession.canEdit,'Viewer session never grants edit permission');
+ ok(!(await (await call('/api/employee/session',{cookie:sessions.viewer})).json()).ok,'Viewer cannot access crew session');
  ok((await call('/',{cookie:sessions.employee})).status===200,'Employee form accessible');
  const tr=DATA.north.trains['1701'];
  const b={submissionId:crypto.randomUUID(),lineLabel:'Sounder North',assignment:'6501',train:'1701',direction:tr.direction,crewInfo:{reportDate:'2026-10-18',conductor:'<img src=x onerror=alert(1)>',engineer:'Synthetic Engineer',onDuty:'05:15',offDuty:'17:34'},actuals:tr.stops.map(([station,scheduled])=>({station,scheduled,actual:scheduled})),passengers:45,bikes:2,ada:1,passengerActivity:[{station:'Everett',on:45,off:0}],delays:[],mechanicalIssues:[{carEngine:'TEST',description:'Synthetic test'}],crewSignoff:{conductor:'TEST'},doorOverrideCompleted:true,doorOverrideInitials:'TEST'};
@@ -34,12 +42,17 @@ try{
  ok((await call('/api/send-demo-report',{method:'POST',body:b,cookie:sessions.employee,headers:{origin:'https://evil.test'}})).status===403,'Cross-origin submission rejected');
  const list=await (await call('/api/admin/reports',{cookie:sessions.admin})).json();ok(list.reports.length===1&&list.reports[0].passengers===45,'Administrator retrieves persisted report');ok(list.reports[0].crew_info.engineer==='Synthetic Engineer','Extended report fields preserved');
  const original=list.reports[0];
+ const viewerReports=await (await call('/api/admin/reports',{cookie:sessions.viewer})).json();
+ ok(viewerReports.reports[0].id===original.id,'Viewer can read current and archived report data');
  await db.prepare('INSERT INTO sounder_daily_reports(id,line_label,assignment,report_date,report_ids,passengers) VALUES(?,?,?,?,?,?)').bind('edit-test','Sounder North','6501','2026-10-18',JSON.stringify([receipt.id]),45).run();
  const editBody={revision:0,reason:'Correct synthetic passenger count',report:{...b,passengers:60}};
  const editPath='/api/admin/reports/'+encodeURIComponent(receipt.id);
  ok((await call(editPath,{method:'PATCH',body:editBody,headers:{origin,'content-type':'application/json'}})).status===401,'Anonymous cannot edit');
  const patch=(body=editBody,cookie=sessions.admin)=>call(editPath,{method:'PATCH',body,cookie,headers:{origin,'content-type':'application/json'}});
  ok((await patch(editBody,sessions.employee)).status===401,'Crew cannot edit history');
+ ok((await patch(editBody,sessions.viewer)).status===403,'Viewer cannot edit even through a direct API call');
+ ok((await patch(editBody,sessions.viewer.replace('_viewer=','_admin='))).status===401,'Viewer cookie cannot be relabeled to impersonate administrator');
+ ok((await call('/api/send-demo-report',{method:'POST',body:b,cookie:sessions.viewer})).status===401,'Viewer cannot submit crew reports');
  ok((await patch({...editBody,report:{...b,passengers:-1}})).status===400,'Invalid correction rejected');
  ok((await patch({...editBody,report:{...b,crewInfo:{...b.crewInfo,reportDate:'2026-10-17'}}})).status===400,'Report identity preserved');
  const edited=await patch();ok(edited.status===200,'Administrator correction saved');const editedRow=(await edited.json()).report;
@@ -49,6 +62,8 @@ try{
  ok((await patch()).status===409,'Stale correction rejected');
  ok((await db.prepare('SELECT COUNT(*) AS n FROM sounder_report_edits').first()).n===1,'Stale correction creates no audit entry');
  ok((await submit()).status===200,'Original crew receipt remains retry-safe after edit');
+ await call('/api/admin/logout',{method:'POST',cookie:sessions.viewer});
+ ok(!(await (await call('/api/admin/session',{cookie:sessions.viewer})).json()).ok,'Viewer logout revokes the server session');
  for(let i=0;i<10;i++)await call('/api/admin/login',{method:'POST',body:{username:'admin',password:'wrong'}});
  ok((await call('/api/admin/login',{method:'POST',body:{username:'admin',password:'wrong'}})).status===429,'Login throttled');
  const logout=await call('/api/employee/logout',{method:'POST',cookie:sessions.employee});ok(logout.status===200,'Employee logout');ok((await call('/api/employee/session',{cookie:sessions.employee})).status===200,'Session check responds');ok(!(await (await call('/api/employee/session',{cookie:sessions.employee})).json()).ok,'Logged-out session revoked on server');
