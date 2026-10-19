@@ -14,8 +14,16 @@ crew.window.fetch=async(url,init)=>{if(fail)throw Error('Simulated network outag
 const c=crew.getInternalVMContext();vm.runInContext(await readFile('public/app.js','utf8'),c);
 ok(crew.window.document.querySelectorAll('.station-row[data-index]').length===4,'North station fields render');
 crew.window.document.querySelector('#conductor').value='Synthetic crew';
+crew.window.document.querySelector('#addMechanical').click();
+const description=crew.window.document.querySelector('.mech-desc');
+ok(description.tagName==='TEXTAREA','Mechanical issue supports multiline descriptions');
+const longDescription='Door inspection details. '.repeat(60)+'\nSecond line with follow-up details.';
+description.value=longDescription;
+description.dispatchEvent(new crew.window.Event('input',{bubbles:true}));
+crew.window.document.querySelector('.mech-car').value='901';
 await vm.runInContext('saveTrain()',c);
 ok(received.length===1&&received[0].crewInfo.conductor==='Synthetic crew','Employee form submits extended fields');
+ok(received[0].mechanicalIssues[0].description===longDescription,'Long multiline mechanical description is submitted in full');
 ok(crew.window.document.querySelector('#modalContent').textContent.includes('received'),'Confirmed receipt displayed');
 ok(vm.runInContext("state.completed['north:6501:1701'].receiptId",c)==='receipt-1701','Confirmed receipt recorded locally');
 vm.runInContext("state.train='1700';populateTrains();renderStations()",c);

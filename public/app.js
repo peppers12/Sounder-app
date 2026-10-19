@@ -227,12 +227,24 @@ function collectCrewInfo(){
     studentEngineer:value("studentEngineer")
   };
 }
+function resizeMechanicalDescription(field){
+  field.style.height="auto";
+  const style=getComputedStyle(field);
+  const border=(parseFloat(style.borderTopWidth)||0)+(parseFloat(style.borderBottomWidth)||0);
+  field.style.height=Math.ceil(field.scrollHeight+border)+"px";
+}
+window.addEventListener("resize",()=>{
+  $$(".mech-desc").forEach(resizeMechanicalDescription);
+});
 function addMechanicalRow(){
   const row=document.createElement("div");
   row.className="mechanical-item";
-  row.innerHTML='<input class="mech-car" placeholder="Car/Eng #"><input class="mech-desc" placeholder="Description of mechanical issue"><button type="button" class="remove-mech" aria-label="Remove mechanical issue">×</button>';
+  row.innerHTML='<input class="mech-car" placeholder="Car/Eng #"><textarea class="mech-desc" rows="3" aria-label="Description of mechanical issue" placeholder="Description of mechanical issue"></textarea><button type="button" class="remove-mech" aria-label="Remove mechanical issue">×</button>';
+  const description=row.querySelector(".mech-desc");
+  description.addEventListener("input",()=>resizeMechanicalDescription(description));
   row.querySelector(".remove-mech").addEventListener("click",()=>row.remove());
   $("#mechanicalIssues").appendChild(row);
+  resizeMechanicalDescription(description);
 }
 function resetTrainExtras(){
   $("#customerServiceIssues").value="";
