@@ -30,7 +30,7 @@ try{
  ok(!(await (await call('/api/employee/session',{cookie:sessions.viewer})).json()).ok,'Viewer cannot access crew session');
  ok((await call('/',{cookie:sessions.employee})).status===200,'Employee form accessible');
  const tr=DATA.north.trains['1701'];
- const b={submissionId:crypto.randomUUID(),lineLabel:'Sounder North',assignment:'6501',train:'1701',direction:tr.direction,crewInfo:{reportDate:'2026-10-18',conductor:'<img src=x onerror=alert(1)>',engineer:'Synthetic Engineer',onDuty:'05:15',offDuty:'17:34'},actuals:tr.stops.map(([station,scheduled])=>({station,scheduled,actual:scheduled})),passengers:45,bikes:2,ada:1,passengerActivity:[{station:'Everett',on:45,off:0}],delays:[],mechanicalIssues:[{carEngine:'TEST',description:'Synthetic test'}],crewSignoff:{conductor:'TEST'},doorOverrideCompleted:true,doorOverrideInitials:'TEST'};
+ const b={submissionId:crypto.randomUUID(),lineLabel:'Sounder North',assignment:'6501',train:'1701',direction:tr.direction,crewInfo:{reportDate:'2026-10-18',conductor:'<img src=x onerror=alert(1)>',engineer:'Synthetic Engineer',onDuty:'05:15',offDuty:'17:34'},actuals:tr.stops.map(([station,scheduled])=>({station,scheduled,actual:scheduled})),passengers:124,bikes:2,ada:1,passengerActivity:tr.stops.map(([station],i)=>({station,on:[45,32,28,19][i],off:[10,15,20,30][i]})),delays:[],mechanicalIssues:[{carEngine:'TEST',description:'Synthetic test'}],crewSignoff:{conductor:'TEST'},doorOverrideCompleted:true,doorOverrideInitials:'TEST'};
  const submit=()=>call('/api/send-demo-report',{method:'POST',body:b,cookie:sessions.employee});
  const r=await submit();ok(r.status===201,'Report submitted');const receipt=await r.json();ok(receipt.ok&&receipt.id,'Receipt returned');
  ok((await submit()).status===200,'Retry is idempotent');
@@ -40,11 +40,12 @@ try{
  ok((await call('/api/send-demo-report',{method:'POST',body:{...b,submissionId:crypto.randomUUID(),train:'9999'},cookie:sessions.employee})).status===400,'Unknown train rejected');
  ok((await call('/api/send-demo-report',{method:'POST',body:b,cookie:sessions.admin})).status===401,'Administrator cookie does not submit as employee');
  ok((await call('/api/send-demo-report',{method:'POST',body:b,cookie:sessions.employee,headers:{origin:'https://evil.test'}})).status===403,'Cross-origin submission rejected');
- const list=await (await call('/api/admin/reports',{cookie:sessions.admin})).json();ok(list.reports.length===1&&list.reports[0].passengers===45,'Administrator retrieves persisted report');ok(list.reports[0].crew_info.engineer==='Synthetic Engineer','Extended report fields preserved');
+ const list=await (await call('/api/admin/reports',{cookie:sessions.admin})).json();ok(list.reports.length===1&&list.reports[0].passengers===124,'Administrator retrieves persisted report');ok(list.reports[0].crew_info.engineer==='Synthetic Engineer','Extended report fields preserved');
  const original=list.reports[0];
+ ok(original.passenger_activity.reduce((n,s)=>n+s.on,0)===124&&original.passenger_activity[3].off===30,'D1 preserves boarding total and unchanged OFF counts');
  const viewerReports=await (await call('/api/admin/reports',{cookie:sessions.viewer})).json();
  ok(viewerReports.reports[0].id===original.id,'Viewer can read current and archived report data');
- await db.prepare('INSERT INTO sounder_daily_reports(id,line_label,assignment,report_date,report_ids,passengers) VALUES(?,?,?,?,?,?)').bind('edit-test','Sounder North','6501','2026-10-18',JSON.stringify([receipt.id]),45).run();
+ await db.prepare('INSERT INTO sounder_daily_reports(id,line_label,assignment,report_date,report_ids,passengers) VALUES(?,?,?,?,?,?)').bind('edit-test','Sounder North','6501','2026-10-18',JSON.stringify([receipt.id]),124).run();
  const editBody={revision:0,reason:'Correct synthetic passenger count',report:{...b,passengers:60}};
  const editPath='/api/admin/reports/'+encodeURIComponent(receipt.id);
  ok((await call(editPath,{method:'PATCH',body:editBody,headers:{origin,'content-type':'application/json'}})).status===401,'Anonymous cannot edit');
@@ -58,7 +59,7 @@ try{
  const edited=await patch();ok(edited.status===200,'Administrator correction saved');const editedRow=(await edited.json()).report;
  ok(editedRow.passengers===60&&editedRow.revision===1&&editedRow.status===original.status,'Correction versioned without changing status');
  ok((await db.prepare('SELECT passengers FROM sounder_daily_reports WHERE id=?').bind('edit-test').first()).passengers===60,'Daily total updated atomically');
- const audit=await db.prepare('SELECT * FROM sounder_report_edits WHERE report_id=?').bind(receipt.id).first();ok(JSON.parse(audit.before_json).passengers===45&&JSON.parse(audit.after_json).passengers===60&&audit.reason===editBody.reason,'Audit preserves before and after values');
+ const audit=await db.prepare('SELECT * FROM sounder_report_edits WHERE report_id=?').bind(receipt.id).first();ok(JSON.parse(audit.before_json).passengers===124&&JSON.parse(audit.after_json).passengers===60&&audit.reason===editBody.reason,'Audit preserves before and after values');
  ok((await patch()).status===409,'Stale correction rejected');
  ok((await db.prepare('SELECT COUNT(*) AS n FROM sounder_report_edits').first()).n===1,'Stale correction creates no audit entry');
  ok((await submit()).status===200,'Original crew receipt remains retry-safe after edit');

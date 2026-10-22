@@ -153,6 +153,16 @@ function renderPassengerActivity(){
       const disabled=scheduled==="--";
       return '<div class="passenger-row" data-passenger-index="'+i+'"><div><strong>'+name+'</strong></div><div>'+(disabled?'—':'<input class="pass-on" inputmode="numeric" value="0" aria-label="'+name+' passengers on">')+'</div><div>'+(disabled?'—':'<input class="pass-off" inputmode="numeric" value="0" aria-label="'+name+' passengers off">')+'</div></div>';
     }).join("");
+  $$(".pass-on").forEach(input=>{
+    input.addEventListener("input",updatePassengerTotal);
+    input.addEventListener("change",updatePassengerTotal);
+  });
+  updatePassengerTotal();
+}
+function updatePassengerTotal(){
+  const total=collectPassengerActivity().reduce((sum,stop)=>sum+stop.on,0);
+  $("#passengers").value=String(total);
+  return total;
 }
 function renderDelaysAndStatuses(){
   const tr=currentTrain();
@@ -276,7 +286,7 @@ async function saveTrain(){
   const record={
     train:state.train,direction:tr.direction,actuals,
     bikes:Number($("#bikes").value)||0,ada:Number($("#ada").value)||0,
-    passengers:Number($("#passengers").value)||0,
+    passengers:updatePassengerTotal(),
     crewInfo:collectCrewInfo(),
     passengerActivity:collectPassengerActivity(),
     delays:collectDelays(),
@@ -323,7 +333,8 @@ $("#trainSelect").addEventListener("change",e=>{state.train=e.target.value;reset
 $("#resetTimes").addEventListener("click",renderStations);
 $("#addMechanical").addEventListener("click",addMechanicalRow);
 $$(".counter-control button").forEach(b=>b.addEventListener("click",()=>{
- const input=$("#"+b.dataset.counter),next=Math.max(0,(Number(input.value)||0)+Number(b.dataset.delta));input.value=next;
+ const input=$("#"+b.dataset.counter);if(input.readOnly)return;
+ const next=Math.max(0,(Number(input.value)||0)+Number(b.dataset.delta));input.value=next;
 }));
 $("#saveTrainBtn").addEventListener("click",saveTrain);
 $("#submitBtn").addEventListener("click",async()=>{
@@ -355,7 +366,7 @@ $("#submitBtn").addEventListener("click",async()=>{
  }catch(e){showModal('<h3>Daily report not closed</h3><p>'+escapeText(e.message)+'</p><p>Your saved train reports remain available. Try again.</p>')}finally{submitting=false}
 });
 $("#reportDate").addEventListener("change",renderProgress);
-$("#helpBtn").addEventListener("click",()=>showModal(`<h3>How reporting works</h3><p><strong>1.</strong> Select Sounder North or South.</p><p><strong>2.</strong> Choose the crew assignment. Only trains belonging to that assignment appear.</p><p><strong>3.</strong> Choose a train. Scheduled station times populate automatically.</p><p><strong>4.</strong> Tap Actual to use the phone/iPad time picker. Only delays of 6 minutes or more prompt for a reason. Delays of 5:59 or less are not recordable.</p><p><strong>5.</strong> Enter Bikes, ADA and Total Passengers, then Save Train.</p><p><strong>6.</strong> When all trains are complete, Submit Daily Report becomes available.</p><p class="fineprint">Independent application — not an official Sound Transit or BNSF reporting system. Saved reports are stored in this app’s database; automatic email delivery is not configured.</p>`));
+$("#helpBtn").addEventListener("click",()=>showModal(`<h3>How reporting works</h3><p><strong>1.</strong> Select Sounder North or South.</p><p><strong>2.</strong> Choose the crew assignment. Only trains belonging to that assignment appear.</p><p><strong>3.</strong> Choose a train. Scheduled station times populate automatically.</p><p><strong>4.</strong> Tap Actual to use the phone/iPad time picker. Only delays of 6 minutes or more prompt for a reason. Delays of 5:59 or less are not recordable.</p><p><strong>5.</strong> Enter Bikes, ADA and station ON counts. Total Passengers adds all boardings automatically. Then Save Train.</p><p><strong>6.</strong> When all trains are complete, Submit Daily Report becomes available.</p><p class="fineprint">Independent application — not an official Sound Transit or BNSF reporting system. Saved reports are stored in this app’s database; automatic email delivery is not configured.</p>`));
 $("#modalClose").addEventListener("click",closeModal);
 $("#modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
 try{state.completed=JSON.parse(localStorage.getItem("sounderDemoCompleted")||"{}")}catch{}

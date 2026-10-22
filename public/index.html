@@ -100,9 +100,9 @@
             <div class="counter-icon">👥</div>
             <div class="counter-label">Total Passengers</div>
             <div class="counter-control">
-              <button data-counter="passengers" data-delta="-1">−</button>
-              <input id="passengers" inputmode="numeric" value="0" />
-              <button data-counter="passengers" data-delta="1">+</button>
+              <button data-counter="passengers" data-delta="-1" disabled title="Calculated from station ON counts">−</button>
+              <input id="passengers" inputmode="numeric" value="0" readonly aria-label="Total passengers boarding across all stations" />
+              <button data-counter="passengers" data-delta="1" disabled title="Calculated from station ON counts">+</button>
             </div>
           </div>
         </div>
