@@ -12,6 +12,8 @@ async function makeDom(file){const dom=new JSDOM(await readFile('public/'+file,'
 const crew=await makeDom('index.html');let fail=false,received=[],daily=[];
 crew.window.fetch=async(url,init)=>{if(fail)throw Error('Simulated network outage');const b=JSON.parse(init.body);if(url.includes('daily-report')){daily.push(b);return {ok:true,json:async()=>({ok:true,id:'daily'})}}received.push(b);return {ok:true,json:async()=>({ok:true,id:'receipt-'+b.train,email:'disabled'})}};
 const c=crew.getInternalVMContext();vm.runInContext(await readFile('public/app.js','utf8'),c);
+ok(vm.runInContext("localDateValue(new Date('2026-10-26T06:59:00Z'))",c)==='2026-10-25','Crew operating date follows Seattle summer midnight');
+ok(vm.runInContext("localDateValue(new Date('2026-12-01T08:00:00Z'))",c)==='2026-12-01','Crew operating date follows Seattle winter midnight');
 ok(crew.window.document.querySelectorAll('.station-row[data-index]').length===4,'North station fields render');
 const setCount=(selector,index,value)=>{const el=crew.window.document.querySelectorAll(selector)[index];el.value=String(value);el.dispatchEvent(new crew.window.Event('input',{bubbles:true}))};
 const passengerTotal=()=>crew.window.document.querySelector('#passengers').value;

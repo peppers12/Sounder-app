@@ -29,12 +29,10 @@ function fmtDate(v){
 }
 function fmtTimeStamp(v){
   if(!v)return "—";
-  return new Date(v).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+  return new Date(v).toLocaleString(undefined,{timeZone:'America/Los_Angeles',timeZoneName:'short',month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
 }
-function todayKey(){
-  const d=new Date(), y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");
-  return y+"-"+m+"-"+day;
-}
+function todayKey(){return seattleDate()}
+
 function normalizeDate(v){return String(v||"").slice(0,10)}
 function filtered(base){
   const line=$("#lineFilter").value, ass=$("#assignmentFilter").value, date=$("#dateFilter").value;
@@ -83,12 +81,12 @@ function renderHistory(){
   $("#historyList").innerHTML=list.length?list.map(r=>card(r,true)).join(""):'<div class="empty">No previous-day reports match these filters.</div>';
   wireCards();
 }
-function chicagoDate(now=new Date()){
-  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
+function seattleDate(now=new Date()){
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
   const get=type=>parts.find(p=>p.type===type).value;
   return get('year')+'-'+get('month')+'-'+get('day');
 }
-function snapshotBounds(period,today=chicagoDate()){
+function snapshotBounds(period,today=seattleDate()){
   const d=new Date(today+'T12:00:00Z'),iso=d=>d.toISOString().slice(0,10);
   if(period==='custom')return {start:$('#snapshotStart').value,end:$('#snapshotEnd').value};
   if(period==='week'){const start=new Date(d);start.setUTCDate(d.getUTCDate()-(d.getUTCDay()+6)%7);const end=new Date(start);end.setUTCDate(start.getUTCDate()+6);return {start:iso(start),end:iso(end)}}
@@ -126,7 +124,7 @@ function renderReports(){
   $('#bars').innerHTML=top.length?top.map(r=>'<div class="bar-row"><strong>'+escapeHtml(r.train)+'</strong><div class="bar-track"><div class="bar" style="width:'+((r.passengers/max)*100)+'%"></div></div><span>'+r.passengers.toLocaleString()+'</span></div>').join(''):'<div class="empty">No reports for this period</div>';
 }
 for(const id of ['snapshotPeriod','snapshotStart','snapshotEnd'])$('#'+id).addEventListener('change',renderReports);
-$('#snapshotStart').value=chicagoDate();$('#snapshotEnd').value=chicagoDate();
+$('#snapshotStart').value=seattleDate();$('#snapshotEnd').value=seattleDate();
 
 function render(){
   renderStats();renderToday();renderHistory();renderReports();

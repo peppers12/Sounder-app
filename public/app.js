@@ -263,7 +263,11 @@ function resetTrainExtras(){
   $("#doorOverrideInitials").value="";
   ["engineerSignoff","conductorSignoff","reliefEngineerSignoff","reliefConductorSignoff"].forEach(id=>$("#"+id).value="");
 }
-function localDateValue(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function localDateValue(now=new Date()){
+ const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
+ const get=type=>parts.find(p=>p.type===type).value;
+ return get('year')+'-'+get('month')+'-'+get('day');
+}
 function clearDailyFields(){
   ["onDuty","offDuty","conductor","engineer","reliefConductor","reliefEngineer","studentConductor","studentEngineer","consistInfo"].forEach(id=>$("#"+id).value="");
   $("#reportDate").value=localDateValue();

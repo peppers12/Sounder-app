@@ -6,8 +6,10 @@ const dom=new JSDOM(await readFile('public/admin.html','utf8'),{url:'https://sou
 w.sounderAdminReady=Promise.resolve(false);
 vm.runInContext(await readFile('public/admin.js','utf8'),c);
 let checks=0;function eq(code,expected){assert.deepEqual(JSON.parse(JSON.stringify(vm.runInContext(code,c))),expected);checks++}
-eq("chicagoDate(new Date('2026-10-26T04:59:00Z'))",'2026-10-25');
-eq("chicagoDate(new Date('2026-10-26T05:00:00Z'))",'2026-10-26');
+eq("seattleDate(new Date('2026-10-26T06:59:00Z'))",'2026-10-25');
+eq("seattleDate(new Date('2026-10-26T07:00:00Z'))",'2026-10-26');
+eq("seattleDate(new Date('2026-12-01T07:59:00Z'))",'2026-11-30');
+eq("seattleDate(new Date('2026-12-01T08:00:00Z'))",'2026-12-01');
 eq("snapshotBounds('week','2026-11-01')",{start:'2026-10-26',end:'2026-11-01'});
 eq("snapshotBounds('month','2028-02-15')",{start:'2028-02-01',end:'2028-02-29'});
 eq("snapshotBounds('today','2026-10-26')",{start:'2026-10-26',end:'2026-10-26'});
