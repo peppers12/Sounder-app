@@ -81,6 +81,12 @@
 
     <div id="reportsView" class="view hidden">
       <div class="section-title"><div><div class="eyebrow dark">SUMMARY</div><h2>Ridership & Delay Snapshot</h2></div></div>
+      <div class="snapshot-period">
+        <label>Reporting period <select id="snapshotPeriod"><option value="today">Today</option><option value="week">This Week</option><option value="month">This Month</option><option value="custom">Custom Dates</option></select></label>
+        <div id="snapshotCustom" hidden><label>Start date <input type="date" id="snapshotStart"></label><label>End date <input type="date" id="snapshotEnd"></label></div>
+        <p id="snapshotRange" aria-live="polite"></p>
+        <p class="muted">America/Chicago · Available report history: 90 days</p>
+      </div>
       <div class="summary-grid" id="summaryGrid"></div>
       <div class="chart-card"><h3>Passenger Volume by Train</h3><div id="bars"></div></div>
     </div>

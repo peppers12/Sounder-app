@@ -6,7 +6,7 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "bundle": "node scripts/bundle.mjs",
-    "test": "npm run bundle && node tests/integration.mjs && node tests/frontend.mjs",
+    "test": "npm run bundle && node tests/integration.mjs && node tests/frontend.mjs && node tests/snapshot.mjs",
     "test:live": "python tests/live-api.py"
   },
   "devDependencies": {

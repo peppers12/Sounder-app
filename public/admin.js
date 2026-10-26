@@ -83,25 +83,51 @@ function renderHistory(){
   $("#historyList").innerHTML=list.length?list.map(r=>card(r,true)).join(""):'<div class="empty">No previous-day reports match these filters.</div>';
   wireCards();
 }
+function chicagoDate(now=new Date()){
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
+  const get=type=>parts.find(p=>p.type===type).value;
+  return get('year')+'-'+get('month')+'-'+get('day');
+}
+function snapshotBounds(period,today=chicagoDate()){
+  const d=new Date(today+'T12:00:00Z'),iso=d=>d.toISOString().slice(0,10);
+  if(period==='custom')return {start:$('#snapshotStart').value,end:$('#snapshotEnd').value};
+  if(period==='week'){const start=new Date(d);start.setUTCDate(d.getUTCDate()-(d.getUTCDay()+6)%7);const end=new Date(start);end.setUTCDate(start.getUTCDate()+6);return {start:iso(start),end:iso(end)}}
+  if(period==='month')return {start:today.slice(0,7)+'-01',end:iso(new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0,12)))};
+  return {start:today,end:today};
+}
+function snapshotReports(start,end){
+  if(!start||!end||start>end)return [];
+  const unique=new Map();
+  for(const r of reports){
+    const date=normalizeDate(r.report_date);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date<start||date>end||!r.train)continue;
+    if($('#lineFilter').value&&r.line_label!==$('#lineFilter').value)continue;
+    if($('#assignmentFilter').value&&r.assignment!==$('#assignmentFilter').value)continue;
+    const key=JSON.stringify([date,r.line_label,r.train]);
+    const previous=unique.get(key);
+    if(!previous||String(r.updated_at||r.saved_at||r.id)>String(previous.updated_at||previous.saved_at||previous.id))unique.set(key,r);
+  }
+  return [...unique.values()];
+}
 function renderReports(){
-  const list=filtered(reports);
-  const pax=list.reduce((n,r)=>n+(Number(r.passengers)||0),0);
-  const bikes=list.reduce((n,r)=>n+(Number(r.bikes)||0),0);
-  const ada=list.reduce((n,r)=>n+(Number(r.ada)||0),0);
+  const period=$('#snapshotPeriod').value,{start,end}=snapshotBounds(period);
+  $('#snapshotCustom').hidden=period!=='custom';
+  const valid=start&&end&&start<=end;
+  $('#snapshotRange').textContent=valid?fmtDate(start)+(start===end?'':' – '+fmtDate(end)):(start&&end?'Start date must be on or before end date.':'Select a start and end date.');
+  const list=snapshotReports(start,end);
+  const sum=key=>list.reduce((n,r)=>n+(Number(r[key])||0),0);
+  const pax=sum('passengers'),bikes=sum('bikes'),ada=sum('ada');
   const delayed=list.filter(r=>maxDelay(r)>=6).length;
   const avg=list.length?Math.round(pax/list.length):0;
-  $("#summaryGrid").innerHTML=[
-    ["Passenger Total",pax.toLocaleString()],
-    ["Average / Train",avg.toLocaleString()],
-    ["6+ Min Delays",delayed],
-    ["Bikes",bikes],
-    ["ADA",ada],
-    ["Reports",list.length]
-  ].map(x=>'<div class="summary-card"><span>'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join("");
-  const top=[...list].sort((a,b)=>b.passengers-a.passengers).slice(0,10);
-  const max=Math.max(...top.map(r=>Number(r.passengers)||0),1);
-  $("#bars").innerHTML=top.length?top.map(r=>'<div class="bar-row"><strong>'+escapeHtml(r.train)+'</strong><div class="bar-track"><div class="bar" style="width:'+((Number(r.passengers)||0)/max*100)+'%"></div></div><span>'+Number(r.passengers||0)+'</span></div>').join(""):'<div class="empty">No report data available.</div>';
+  $('#summaryGrid').innerHTML=[['Passenger Total',pax.toLocaleString()],['Average / Train',avg.toLocaleString()],['6+ Min Delays',delayed],['Bikes',bikes],['ADA',ada],['Reports',list.length]].map(x=>'<div class="summary-card"><span>'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('');
+  const grouped=new Map();for(const r of list)grouped.set(String(r.train),(grouped.get(String(r.train))||0)+(Number(r.passengers)||0));
+  const top=[...grouped].map(([train,passengers])=>({train,passengers})).sort((a,b)=>b.passengers-a.passengers||a.train.localeCompare(b.train));
+  const max=Math.max(...top.map(r=>r.passengers),1);
+  $('#bars').innerHTML=top.length?top.map(r=>'<div class="bar-row"><strong>'+escapeHtml(r.train)+'</strong><div class="bar-track"><div class="bar" style="width:'+((r.passengers/max)*100)+'%"></div></div><span>'+r.passengers.toLocaleString()+'</span></div>').join(''):'<div class="empty">No reports for this period</div>';
 }
+for(const id of ['snapshotPeriod','snapshotStart','snapshotEnd'])$('#'+id).addEventListener('change',renderReports);
+$('#snapshotStart').value=chicagoDate();$('#snapshotEnd').value=chicagoDate();
+
 function render(){
   renderStats();renderToday();renderHistory();renderReports();
 }
